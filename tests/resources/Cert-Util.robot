@@ -1,4 +1,4 @@
-# Copyright 2017 VMware, Inc. All Rights Reserved.
+# Copyright Project Harbor Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,14 +19,15 @@ Documentation  This resource contains keywords related to creating and using cer
 Generate Certificate Authority For Chrome
     #  add the ca to chrome trust list to enable https testing.
     [Arguments]  ${password}=%{HARBOR_PASSWORD}
+    ${rand}=  Evaluate  random.randint(0, 100000)  modules=random
     Log To Console  Generate Certificate Authority For Chrome
-    ${rc}  ${out}=  Run And Return Rc And Output  echo ${password} > password.ca
+    ${rc}  ${out}=  Run And Return Rc And Output  echo ${password} > password${rand}.ca
     Log  ${out}
     Should Be Equal As Integers  ${rc}  0
-    ${rc}  ${out}=  Run And Return Rc And Output  certutil -d sql:$HOME/.pki/nssdb -A -t TC -f password.ca -n "Harbor" -i ./harbor_ca.crt
+    ${rc}  ${out}=  Run And Return Rc And Output  certutil -d sql:$HOME/.pki/nssdb -A -t TC -f password${rand}.ca -n "Harbor${rand}" -i ./harbor_ca.crt
     Log  ${out}
     Should Be Equal As Integers  ${rc}  0
-		
+
 Generate Certificate Authority
     #  Generates CA (private/ca.key.pem, certs/ca.cert.pem, certs/STARK_ENTERPRISES_ROOT_CA.crt) in OUT_DIR
     [Arguments]  ${CA_NAME}=STARK_ENTERPRISES_ROOT_CA  ${OUT_DIR}=/root/ca

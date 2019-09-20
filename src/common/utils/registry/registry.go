@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,10 +21,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	// "time"
 
-	"github.com/vmware/harbor/src/common/utils"
-	registry_error "github.com/vmware/harbor/src/common/utils/error"
+	commonhttp "github.com/goharbor/harbor/src/common/http"
+	"github.com/goharbor/harbor/src/common/utils"
 )
 
 // Registry holds information of a registry entity
@@ -39,11 +38,13 @@ func init() {
 	defaultHTTPTransport = &http.Transport{}
 
 	secureHTTPTransport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: false,
 		},
 	}
 	insecureHTTPTransport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
 		},
@@ -110,7 +111,7 @@ func (r *Registry) Catalog() ([]string, error) {
 			}
 
 			repos = append(repos, catalogResp.Repositories...)
-			//Link: </v2/_catalog?last=library%2Fhello-world-25&n=100>; rel="next"
+			// Link: </v2/_catalog?last=library%2Fhello-world-25&n=100>; rel="next"
 			link := resp.Header.Get("Link")
 			if strings.HasSuffix(link, `rel="next"`) && strings.Index(link, "<") >= 0 && strings.Index(link, ">") >= 0 {
 				suffix = link[strings.Index(link, "<")+1 : strings.Index(link, ">")]
@@ -118,18 +119,27 @@ func (r *Registry) Catalog() ([]string, error) {
 				suffix = ""
 			}
 		} else {
-			return repos, &registry_error.HTTPError{
-				StatusCode: resp.StatusCode,
-				Detail:     string(b),
+			return repos, &commonhttp.Error{
+				Code:    resp.StatusCode,
+				Message: string(b),
 			}
 		}
 	}
 	return repos, nil
 }
 
-// Ping ...
+// Ping checks by Head method
 func (r *Registry) Ping() error {
-	req, err := http.NewRequest(http.MethodHead, buildPingURL(r.Endpoint.String()), nil)
+	return r.ping(http.MethodHead)
+}
+
+// PingGet checks by Get method
+func (r *Registry) PingGet() error {
+	return r.ping(http.MethodGet)
+}
+
+func (r *Registry) ping(method string) error {
+	req, err := http.NewRequest(method, buildPingURL(r.Endpoint.String()), nil)
 	if err != nil {
 		return err
 	}
@@ -149,8 +159,26 @@ func (r *Registry) Ping() error {
 		return err
 	}
 
-	return &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	return &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
+}
+
+// PingSimple checks whether the registry is available. It checks the connectivity and certificate (if TLS enabled)
+// only, regardless of credential.
+func (r *Registry) PingSimple() error {
+	err := r.Ping()
+	if err == nil {
+		return nil
+	}
+	httpErr, ok := err.(*commonhttp.Error)
+	if !ok {
+		return err
+	}
+	if httpErr.Code == http.StatusUnauthorized ||
+		httpErr.Code == http.StatusForbidden {
+		return nil
+	}
+	return httpErr
 }

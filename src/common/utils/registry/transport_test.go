@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/vmware/harbor/src/common/utils/test"
+	"github.com/goharbor/harbor/src/common/utils/test"
 )
 
 type simpleModifier struct {

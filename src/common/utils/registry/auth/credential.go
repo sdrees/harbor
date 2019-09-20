@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,13 +16,12 @@ package auth
 
 import (
 	"net/http"
+
+	"github.com/goharbor/harbor/src/common/http/modifier"
 )
 
 // Credential ...
-type Credential interface {
-	// AddAuthorization adds authorization information to request
-	AddAuthorization(req *http.Request)
-}
+type Credential modifier.Modifier
 
 // Implements interface Credential
 type basicAuthCredential struct {
@@ -42,18 +41,8 @@ func (b *basicAuthCredential) AddAuthorization(req *http.Request) {
 	req.SetBasicAuth(b.username, b.password)
 }
 
-type cookieCredential struct {
-	cookie *http.Cookie
-}
-
-// NewCookieCredential initialize a cookie based crendential handler, the cookie in parameter will be added to request to registry
-// if this crendential is attached to a registry client.
-func NewCookieCredential(c *http.Cookie) Credential {
-	return &cookieCredential{
-		cookie: c,
-	}
-}
-
-func (c *cookieCredential) AddAuthorization(req *http.Request) {
-	req.AddCookie(c.cookie)
+// implement github.com/goharbor/harbor/src/common/http/modifier.Modifier
+func (b *basicAuthCredential) Modify(req *http.Request) error {
+	b.AddAuthorization(req)
+	return nil
 }

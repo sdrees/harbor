@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ import (
 	"fmt"
 
 	"github.com/astaxie/beego/orm"
-	"github.com/vmware/harbor/src/common/models"
+	"github.com/goharbor/harbor/src/common/models"
 )
 
 // GetUserProjectRoles returns roles that the user has according to the project.
-func GetUserProjectRoles(userID int, projectID int64) ([]models.Role, error) {
+func GetUserProjectRoles(userID int, projectID int64, entityType string) ([]models.Role, error) {
 
 	o := GetOrmer()
 
@@ -32,7 +32,7 @@ func GetUserProjectRoles(userID int, projectID int64) ([]models.Role, error) {
 			(
 				select role
 				from project_member
-				where project_id = ? and user_id = ?
+				where project_id = ? and entity_id = ? and entity_type = 'u'
 			)`
 
 	var roleList []models.Role
@@ -70,7 +70,7 @@ func IsAdminRole(userIDOrUsername interface{}) (bool, error) {
 		return false, nil
 	}
 
-	return user.HasAdminRole == 1, nil
+	return user.HasAdminRole, nil
 }
 
 // GetRoleByID ...

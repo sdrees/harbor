@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2016 VMware, Inc. All Rights Reserved.
+# Copyright Project Harbor Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 set -x
 gsutil version -l
 set +x
+
+## -------------------------------------------- Pre-condition --------------------------------------------
+if [[ $DRONE_REPO != "goharbor/harbor" ]]; then
+    echo "Only run tests again Harbor Repo."
+    exit 1
+fi
+# It won't package an new harbor build against tag, just pick up a build which passed CI and push to release.
+if [[ $DRONE_BUILD_EVENT == "tag" || $DRONE_BUILD_EVENT == "pull_request" ]]; then
+    echo "We do nothing against 'tag' and 'pull request'."
+    exit 0
+fi
 
 ## --------------------------------------------- Init Env -------------------------------------------------
 dpkg -l > package.list
@@ -25,16 +35,7 @@ Xvfb -ac :99 -screen 0 1280x1024x16 & export DISPLAY=:99
 
 export DRONE_SERVER=$DRONE_SERVER
 export DRONE_TOKEN=$DRONE_TOKEN
-buildinfo=$(drone build info vmware/harbor $DRONE_BUILD_NUMBER)
-echo $buildinfo
-git_commit=$(git rev-parse --short=8 HEAD)
-if [ $DRONE_BUILD_EVENT == "tag" ]; then
-    build_number=$(git describe --abbrev=0 --tags)
-else
-    build_number=$DRONE_BUILD_NUMBER-$git_commit
-fi
-echo build_number
-export HARBOR_BUILD_NUMBER=$build_number
+
 upload_build=false
 nightly_run=false
 upload_latest_build=false
@@ -48,7 +49,7 @@ harbor_builds_bucket="harbor-builds"
 harbor_releases_bucket="harbor-releases"
 harbor_ci_pipeline_store_bucket="harbor-ci-pipeline-store/latest"
 harbor_target_bucket=""
-if [ $DRONE_BRANCH == "master" ]; then
+if [[ $DRONE_BRANCH == "master" ]]; then
   harbor_target_bucket=$harbor_builds_bucket
 else
   harbor_target_bucket=$harbor_releases_bucket/$DRONE_BRANCH
@@ -68,6 +69,37 @@ echo "default_project_id = $GS_PROJECT_ID" >> $botofile
 container_ip=`ip addr s eth0 |grep "inet "|awk '{print $2}' |awk -F "/" '{print $1}'`
 echo $container_ip
 
+## --------------------------------------------- Init Version -----------------------------------------------
+buildinfo=$(drone build info goharbor/harbor $DRONE_BUILD_NUMBER)
+echo $buildinfo
+git_commit=$(git rev-parse --short=8 HEAD)
+
+#  the target release version is the version of next release(RC or GA). It needs to be updated on creating new release branch.
+target_release_version=$(cat ./VERSION)
+#  the harbor ui version will be shown in the about dialog.
+Harbor_UI_Version=$target_release_version-$git_commit
+#  the harbor package version is for both online and offline installer.
+#  harbor-offline-installer-v1.5.2-build.8.tgz
+Harbor_Package_Version=$target_release_version-'build.'$DRONE_BUILD_NUMBER
+#  the harbor assets version is for tag of harbor images:
+# 1, On master branch, it's same as package version.
+# 2, On release branch(others), it would set to the target realese version so that we can rename the latest passed CI build to publish.
+if [[ $DRONE_BRANCH == "master" ]]; then
+  Harbor_Assets_Version=$Harbor_Package_Version
+else
+  Harbor_Assets_Version=$target_release_version
+fi
+export Harbor_UI_Version=$Harbor_UI_Version
+export Harbor_Assets_Version=$Harbor_Assets_Version
+#  the env is for online and offline package.
+export Harbor_Package_Version=$Harbor_Package_Version
+
+echo "--------------------------------------------------"
+echo "Harbor UI version: $Harbor_UI_Version"
+echo "Harbor Package version: $Harbor_Package_Version"
+echo "Harbor Assets version: $Harbor_Assets_Version"
+echo "--------------------------------------------------"
+
 # GS util
 function uploader {
     gsutil cp $1 gs://$2/$1
@@ -83,63 +115,40 @@ function package_offline_installer {
     du -ks $harbor_build_bundle | awk '{print $1 / 1024}' | { read x; echo $x MB; }
 }
 
-## --------------------------------------------- Run Test Case ---------------------------------------------
-if [ $DRONE_REPO != "vmware/harbor" ]; then
-    echo "Only run tests again Harbor Repo."
-    exit 1
-fi
+# publish images to Docker Hub
+function publishImage {
+    echo "Publishing images to Docker Hub..."
+    echo "The images on the host:"
+    # for master, will use 'dev' as the tag name
+    # for release-*, will use 'release-*-dev' as the tag name, like release-v1.8.0-dev
+    if [[ $DRONE_BRANCH == "master" ]]; then
+      image_tag=dev
+    fi
+    if [[ $DRONE_BRANCH == "release-"* ]]; then
+      image_tag=$Harbor_Assets_Version-dev
+    fi
+    # rename the images with tag "dev" and push to Docker Hub
+    docker images
+    docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_PASSWORD
+    docker images | sed -n "s|\(goharbor/[-._a-z0-9]*\)\s*\(.*$Harbor_Assets_Version\).*|docker tag \1:\2 \1:$image_tag;docker push \1:$image_tag|p" | bash
+    echo "Images are published successfully"
+    docker images
+}
 
 echo "--------------------------------------------------"
 echo "Running CI for $DRONE_BUILD_EVENT on $DRONE_BRANCH"
 echo "--------------------------------------------------"
 
 ##
-# Any merge code or tag on branch master, release-* or pks-* will trigger package offline installer.
+# Any merge code(PUSH) on branch master, release-* will trigger package offline installer.
 #
 # Put code here is because that it needs clean code to build installer.
 ##
-if [[ $DRONE_BRANCH == "master" || $DRONE_BRANCH == *"refs/tags"* || $DRONE_BRANCH == "release-"* || $DRONE_BRANCH == "pks-"* ]]; then
-    if [[ $DRONE_BUILD_EVENT == "push" || $DRONE_BUILD_EVENT == "tag" ]]; then
-        package_offline_installer 
-        upload_latest_build=true     
+if [[ $DRONE_BRANCH == "master" || $DRONE_BRANCH == *"refs/tags"* || $DRONE_BRANCH == "release-"* ]]; then
+    if [[ $DRONE_BUILD_EVENT == "push" ]]; then
+        package_offline_installer
+        upload_latest_build=true
     fi
-fi
-
-##
-# Any Event(PR or merge code) on any branch will trigger test run.
-##
-if (echo $buildinfo | grep -q "\[Specific CI="); then
-    buildtype=$(echo $buildinfo | grep "\[Specific CI=")
-    testsuite=$(echo $buildtype | awk -F"\[Specific CI=" '{sub(/\].*/,"",$2);print $2}')
-    pybot -v ip:$container_ip --removekeywords TAG:secret --suite $testsuite tests/robot-cases
-elif (echo $buildinfo | grep -q "\[Full CI\]"); then
-    pybot -v ip:$container_ip --removekeywords TAG:secret --exclude skip tests/robot-cases
-elif (echo $buildinfo | grep -q "\[Skip CI\]"); then
-    echo "Skip CI."
-elif (echo $buildinfo | grep -q "\[Upload Build\]"); then
-    package_offline_installer
-    pybot -v ip:$container_ip --removekeywords TAG:secret --include BAT tests/robot-cases/Group0-BAT
-else
-    # default mode is BAT.
-    pybot -v ip:$container_ip --removekeywords TAG:secret --include BAT tests/robot-cases/Group0-BAT
-fi
-
-# rc is used to identify test run pass or fail.
-rc="$?"
-echo $rc
-
-## --------------------------------------------- Upload Harbor CI Logs -------------------------------------------
-timestamp=$(date +%s)
-outfile="integration_logs_"$DRONE_BUILD_NUMBER"_"$DRONE_COMMIT".tar.gz"
-tar -zcvf $outfile output.xml log.html *.png package.list *container-logs.zip *.log /var/log/harbor/* /data/config/* /data/job_logs/*
-if [ -f "$outfile" ]; then
-    uploader $outfile $harbor_logs_bucket
-    echo "----------------------------------------------"
-    echo "Download test logs:"
-    echo "https://storage.googleapis.com/harbor-ci-logs/$outfile"
-    echo "----------------------------------------------"
-else
-    echo "No log output file to upload"
 fi
 
 ## --------------------------------------------- Upload Harbor Bundle File ---------------------------------------
@@ -154,31 +163,47 @@ fi
 #                                     latest.build
 #                                     harbor-offline-installer-latest.tgz
 #
-if [ $upload_build == true ] && [ $rc -eq 0 ]; then
+set -e
+if [ $upload_build == true ]; then
     cp $harbor_build_bundle harbor-offline-installer-latest.tgz
     uploader $harbor_build_bundle $harbor_target_bucket
-    uploader harbor-offline-installer-latest.tgz $harbor_target_bucket 
-    upload_bundle_success=true 
+    uploader harbor-offline-installer-latest.tgz $harbor_target_bucket
+    upload_bundle_success=true
+fi
+
+
+## --------------------------------------------- Upload Harbor Dev Images ---------------------------------------
+#
+# Any merge code(PUSH) on branch master, release-* will trigger push dev images.
+#
+##
+if [[ $DRONE_BRANCH == "master" || $DRONE_BRANCH == "release-"* ]]; then
+    if [[ $DRONE_BUILD_EVENT == "push" ]]; then
+        publishImage
+    fi
 fi
 
 ## --------------------------------------------- Upload Harbor Latest Build File ----------------------------------
 #
 # latest.build file holds the latest offline installer url, it must be sure that the installer has been uploaded successfull.
 #
-if [ $upload_latest_build == true ] && [ $upload_bundle_success == true ] && [ $rc -eq 0 ]; then
+if [ $upload_latest_build == true ] && [ $upload_bundle_success == true ]; then
     echo 'https://storage.googleapis.com/'$harbor_target_bucket/$harbor_build_bundle > $latest_build_file
-    uploader $latest_build_file $harbor_target_bucket  
+    uploader $latest_build_file $harbor_target_bucket
 fi
 
-## ------------------------------------- Build & Publish NPM Package for VIC ------------------------------------
-if [ $publish_npm == true ] && [ $rc -eq 0 ] && [[ $DRONE_BUILD_EVENT == "push" || $DRONE_BUILD_EVENT == "tag" ]]; then
-    echo "build & publish package harbor-ui-vic to npm repo."
-    ./tools/ui_lib/build_ui_lib_4_vic.sh
+## --------------------------------------------- Upload securego results ------------------------------------------
+if [ $DRONE_BUILD_EVENT == "push" ]; then
+    go get github.com/securego/gosec/cmd/gosec
+    go get github.com/dghubble/sling
+    make gosec -e GOSECRESULTS=harbor-gosec-results-latest.json
+    echo $git_commit > ./harbor-gosec-results-latest-version
+    uploader harbor-gosec-results-latest.json $harbor_target_bucket
+    uploader harbor-gosec-results-latest-version $harbor_target_bucket
 fi
 
-## ------------------------------------------------ Tear Down ---------------------------------------------------
+## ------------------------------------------------ Tear Down -----------------------------------------------------
 if [ -f "$keyfile" ]; then
   rm -f $keyfile
 fi
 
-exit $rc

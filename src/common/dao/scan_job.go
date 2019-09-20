@@ -1,4 +1,4 @@
-// copyright (c) 2017 vmware, inc. all rights reserved.
+// Copyright Project Harbor Authors
 //
 // licensed under the apache license, version 2.0 (the "license");
 // you may not use this file except in compliance with the license.
@@ -15,12 +15,11 @@
 package dao
 
 import (
-	"github.com/astaxie/beego/orm"
-	"github.com/vmware/harbor/src/common/models"
-	"github.com/vmware/harbor/src/common/utils/log"
-
 	"encoding/json"
 	"fmt"
+	"github.com/astaxie/beego/orm"
+	"github.com/goharbor/harbor/src/common/models"
+	"github.com/goharbor/harbor/src/common/utils/log"
 	"time"
 )
 
@@ -82,6 +81,21 @@ func UpdateScanJobStatus(id int64, status string) error {
 		log.Warningf("no records are updated when updating scan job %d", id)
 	}
 	return err
+}
+
+// SetScanJobUUID set UUID to the record so it associates with the job in job service.
+func SetScanJobUUID(id int64, uuid string) error {
+	o := GetOrmer()
+	sj := models.ScanJob{
+		ID:   id,
+		UUID: uuid,
+	}
+	n, err := o.Update(&sj, "UUID")
+	if n == 0 {
+		log.Warningf("no records are updated when updating scan job %d", id)
+	}
+	return err
+
 }
 
 func scanJobQs(limit ...int) orm.QuerySeter {

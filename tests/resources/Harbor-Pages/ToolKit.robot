@@ -1,4 +1,4 @@
-# Copyright 2016-2017 VMware, Inc. All Rights Reserved.
+# Copyright Project Harbor Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,58 +17,76 @@ Documentation  This resource provides any keywords related to the Harbor private
 Resource  ../../resources/Util.robot
 
 *** Variables ***
-${HARBOR_VERSION}  v1.1.1
 
 *** Keywords ***
 Delete Success
-    Page Should Contain  Deleted successfully
-    Page Should Not Contain  Deleted failed
-    Click Element  //clr-modal//button[contains(.,'CLOSE')]
+    [Arguments]  @{obj}
+    :For  ${obj}  in  @{obj}
+    \    Retry Wait Until Page Contains Element  //*[@id='contentAll']//div[contains(.,'${obj}')]/../div/clr-icon[@shape='success-standard']
     Sleep  1
+    Capture Page Screenshot
 
-Partly Success
-    Page Should Contain  Deleted successfully
-    Page Should Contain  Deleted failed
-    Click Element  //clr-modal//button[contains(.,'CLOSE')]
+Delete Fail
+    [Arguments]  @{obj}
+    :For  ${obj}  in  @{obj}
+    \    Retry Wait Until Page Contains Element  //*[@id='contentAll']//div[contains(.,'${obj}')]/../div/clr-icon[@shape='error-standard']
     Sleep  1
+    Capture Page Screenshot
 
 Filter Object
+#Filter project repo user tag.
     [Arguments]    ${kw}
-    Click Element  xpath=//hbr-filter//clr-icon
-    Input Text   xpath=//hbr-filter//input  ${kw}
-    Sleep  1
+    Retry Element Click  xpath=//hbr-filter//clr-icon
+    ${element}=  Set Variable  xpath=//hbr-filter//input
+    Wait Until Element Is Visible And Enabled  ${element}
+    Input Text   ${element}  ${kw}
+    Sleep  3
 
 Select Object
+#select single element such as user project repo tag
     [Arguments]    ${obj}
-    Click Element  //clr-dg-cell[contains(.,'${obj}')]//label
+    Retry Element Click  xpath=//clr-dg-row[contains(.,'${obj}')]//label
 
+# This func cannot support as the delete user flow changed.
 Multi-delete Object
-    [Arguments]    @{obj}
+    [Arguments]    ${delete_btn}  @{obj}
     :For  ${obj}  in  @{obj}
-    \    Click Element  //clr-dg-row[contains(.,'${obj}')]//label
+    \    ${element}=  Set Variable  xpath=//clr-dg-row[contains(.,'${obj}')]//label
+    \    Retry Element Click  ${element}
     Sleep  1
-    Click Element  //button[contains(.,'Delete')]
-    Sleep  2
-    Click Element  //clr-modal//button[contains(.,'DELETE')]
-    Sleep  3
+    Capture Page Screenshot
+    Retry Element Click  ${delete_btn}
+    Sleep  1
+    Capture Page Screenshot
+    Retry Element Click  ${repo_delete_on_card_view_btn}
+    Sleep  1
+    Capture Page Screenshot
+    Sleep  1
 
-Multi-delete Member 
+Multi-delete User
     [Arguments]    @{obj}
     :For  ${obj}  in  @{obj}
-    \    Click Element  //clr-dg-row[contains(.,'${obj}')]//label
-    Sleep  1
-    Click Element  //button[contains(.,'REMOVE')]
-    Sleep  2
-    Click Element  //clr-modal//button[contains(.,'DELETE')]
-    Sleep  3
+    \    Retry Element Click  //clr-dg-row[contains(.,'${obj}')]//label
+    Retry Element Click  ${member_action_xpath}
+    Retry Element Click  //*[@id='deleteUser']
+    Retry Double Keywords When Error  Retry Element Click  ${delete_btn}  Retry Wait Until Page Not Contains Element  ${delete_btn}
+
+
+Multi-delete Member
+    [Arguments]    @{obj}
+    :For  ${obj}  in  @{obj}
+    \    Retry Element Click  //clr-dg-row[contains(.,'${obj}')]//clr-checkbox-wrapper/label
+    Retry Double Keywords When Error  Retry Element Click  ${member_action_xpath}  Retry Wait Until Page Contains Element  ${delete_action_xpath}
+    Retry Double Keywords When Error  Retry Element Click  ${delete_action_xpath}  Retry Wait Until Page Contains Element  ${delete_btn}
+    Retry Double Keywords When Error  Retry Element Click  ${delete_btn}  Retry Wait Until Page Not Contains Element  ${delete_btn}
+
 
 Multi-delete Object Without Confirmation
     [Arguments]    @{obj}
     :For  ${obj}  in  @{obj}
-    \    Click Element  //clr-dg-row[contains(.,'${obj}')]//label
-    Sleep  1
-    Click Element  //button[contains(.,'Delete')]
-    Sleep  3
+    \    Retry Element Click  //clr-dg-row[contains(.,'${obj}')]//label
+    Retry Double Keywords When Error  Retry Element Click  ${delete_btn_2}  Retry Wait Until Page Not Contains Element  ${delete_btn_2}
+
 
 Select All On Current Page Object
-    Click Element  //div[@class='datagrid-head']//label
+    Retry Element Click  //div[@class='datagrid-head']//label

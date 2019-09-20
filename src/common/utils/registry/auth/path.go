@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,16 @@ package auth
 import (
 	"regexp"
 
-	"github.com/docker/distribution/digest"
 	"github.com/docker/distribution/reference"
-	"github.com/vmware/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/common/utils/log"
 )
 
 var (
 	base            = regexp.MustCompile("/v2")
 	catalog         = regexp.MustCompile("/v2/_catalog")
 	tag             = regexp.MustCompile("/v2/(" + reference.NameRegexp.String() + ")/tags/list")
-	manifest        = regexp.MustCompile("/v2/(" + reference.NameRegexp.String() + ")/manifests/(" + reference.TagRegexp.String() + "|" + digest.DigestRegexp.String() + ")")
-	blob            = regexp.MustCompile("/v2/(" + reference.NameRegexp.String() + ")/blobs/" + digest.DigestRegexp.String())
+	manifest        = regexp.MustCompile("/v2/(" + reference.NameRegexp.String() + ")/manifests/(" + reference.TagRegexp.String() + "|" + reference.DigestRegexp.String() + ")")
+	blob            = regexp.MustCompile("/v2/(" + reference.NameRegexp.String() + ")/blobs/" + reference.DigestRegexp.String())
 	blobUpload      = regexp.MustCompile("/v2/(" + reference.NameRegexp.String() + ")/blobs/uploads")
 	blobUploadChunk = regexp.MustCompile("/v2/(" + reference.NameRegexp.String() + ")/blobs/uploads/[a-zA-Z0-9-_.=]+")
 

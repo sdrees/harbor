@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,13 +25,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	//	"time"
 
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
-
-	"github.com/vmware/harbor/src/common/utils"
-	registry_error "github.com/vmware/harbor/src/common/utils/error"
+	commonhttp "github.com/goharbor/harbor/src/common/http"
+	"github.com/goharbor/harbor/src/common/utils"
 )
 
 // Repository holds information of a repository entity
@@ -61,7 +59,7 @@ func NewRepository(name, endpoint string, client *http.Client) (*Repository, err
 
 func parseError(err error) error {
 	if urlErr, ok := err.(*url.Error); ok {
-		if regErr, ok := urlErr.Err.(*registry_error.HTTPError); ok {
+		if regErr, ok := urlErr.Err.(*commonhttp.Error); ok {
 			return regErr
 		}
 	}
@@ -109,9 +107,9 @@ func (r *Repository) ListTag() ([]string, error) {
 		return tags, nil
 	}
 
-	return tags, &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	return tags, &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 
 }
@@ -149,9 +147,9 @@ func (r *Repository) ManifestExist(reference string) (digest string, exist bool,
 		return
 	}
 
-	err = &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	err = &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 	return
 }
@@ -186,9 +184,9 @@ func (r *Repository) PullManifest(reference string, acceptMediaTypes []string) (
 		return
 	}
 
-	err = &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	err = &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 
 	return
@@ -211,7 +209,7 @@ func (r *Repository) PushManifest(reference, mediaType string, payload []byte) (
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusCreated {
+	if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
 		digest = resp.Header.Get(http.CanonicalHeaderKey("Docker-Content-Digest"))
 		return
 	}
@@ -221,9 +219,9 @@ func (r *Repository) PushManifest(reference, mediaType string, payload []byte) (
 		return
 	}
 
-	err = &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	err = &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 
 	return
@@ -252,10 +250,35 @@ func (r *Repository) DeleteManifest(digest string) error {
 		return err
 	}
 
-	return &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	return &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
+}
+
+// MountBlob ...
+func (r *Repository) MountBlob(digest, from string) error {
+	req, err := http.NewRequest("POST", buildMountBlobURL(r.Endpoint.String(), r.Name, digest, from), nil)
+	req.Header.Set(http.CanonicalHeaderKey("Content-Length"), "0")
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode/100 != 2 {
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return &commonhttp.Error{
+			Code:    resp.StatusCode,
+			Message: string(b),
+		}
+	}
+
+	return nil
 }
 
 // DeleteTag ...
@@ -266,8 +289,8 @@ func (r *Repository) DeleteTag(tag string) error {
 	}
 
 	if !exist {
-		return &registry_error.HTTPError{
-			StatusCode: http.StatusNotFound,
+		return &commonhttp.Error{
+			Code: http.StatusNotFound,
 		}
 	}
 
@@ -301,9 +324,9 @@ func (r *Repository) BlobExist(digest string) (bool, error) {
 		return false, err
 	}
 
-	return false, &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	return false, &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 }
 
@@ -337,9 +360,9 @@ func (r *Repository) PullBlob(digest string) (size int64, data io.ReadCloser, er
 		return
 	}
 
-	err = &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	err = &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 
 	return
@@ -368,19 +391,24 @@ func (r *Repository) initiateBlobUpload(name string) (location, uploadUUID strin
 		return
 	}
 
-	err = &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	err = &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 
 	return
 }
 
 func (r *Repository) monolithicBlobUpload(location, digest string, size int64, data io.Reader) error {
-	req, err := http.NewRequest("PUT", buildMonolithicBlobUploadURL(location, digest), data)
+	url, err := buildMonolithicBlobUploadURL(r.Endpoint.String(), location, digest)
 	if err != nil {
 		return err
 	}
+	req, err := http.NewRequest("PUT", url, data)
+	if err != nil {
+		return err
+	}
+	req.ContentLength = size
 
 	resp, err := r.client.Do(req)
 	if err != nil {
@@ -398,9 +426,9 @@ func (r *Repository) monolithicBlobUpload(location, digest string, size int64, d
 		return err
 	}
 
-	return &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	return &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 }
 
@@ -436,9 +464,9 @@ func (r *Repository) DeleteBlob(digest string) error {
 		return err
 	}
 
-	return &registry_error.HTTPError{
-		StatusCode: resp.StatusCode,
-		Detail:     string(b),
+	return &commonhttp.Error{
+		Code:    resp.StatusCode,
+		Message: string(b),
 	}
 }
 
@@ -458,11 +486,24 @@ func buildBlobURL(endpoint, repoName, reference string) string {
 	return fmt.Sprintf("%s/v2/%s/blobs/%s", endpoint, repoName, reference)
 }
 
+func buildMountBlobURL(endpoint, repoName, digest, from string) string {
+	return fmt.Sprintf("%s/v2/%s/blobs/uploads/?mount=%s&from=%s", endpoint, repoName, digest, from)
+}
+
 func buildInitiateBlobUploadURL(endpoint, repoName string) string {
 	return fmt.Sprintf("%s/v2/%s/blobs/uploads/", endpoint, repoName)
 }
 
-func buildMonolithicBlobUploadURL(location, digest string) string {
+func buildMonolithicBlobUploadURL(endpoint, location, digest string) (string, error) {
+	relative, err := isRelativeURL(location)
+	if err != nil {
+		return "", err
+	}
+	// when the registry enables "relativeurls", the location returned
+	// has no scheme and host part
+	if relative {
+		location = endpoint + location
+	}
 	query := ""
 	if strings.ContainsRune(location, '?') {
 		query = "&"
@@ -470,5 +511,13 @@ func buildMonolithicBlobUploadURL(location, digest string) string {
 		query = "?"
 	}
 	query += fmt.Sprintf("digest=%s", digest)
-	return fmt.Sprintf("%s%s", location, query)
+	return fmt.Sprintf("%s%s", location, query), nil
+}
+
+func isRelativeURL(endpoint string) (bool, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return false, err
+	}
+	return !u.IsAbs(), nil
 }

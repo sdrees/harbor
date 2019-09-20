@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,16 +21,16 @@ import (
 	"net/url"
 
 	"github.com/docker/distribution/registry/auth/token"
-	"github.com/vmware/harbor/src/common/models"
-	registry_error "github.com/vmware/harbor/src/common/utils/error"
-	"github.com/vmware/harbor/src/common/utils/registry"
+	commonhttp "github.com/goharbor/harbor/src/common/http"
+	"github.com/goharbor/harbor/src/common/models"
+	"github.com/goharbor/harbor/src/common/utils/registry"
 )
 
 const (
 	service = "harbor-registry"
 )
 
-// GetToken requests a token against the endpoint using credetial provided
+// GetToken requests a token against the endpoint using credential provided
 func GetToken(endpoint string, insecure bool, credential Credential,
 	scopes []*token.ResourceActions) (*models.Token, error) {
 	client := &http.Client{
@@ -59,7 +59,7 @@ func getToken(client *http.Client, credential Credential, realm, service string,
 	}
 
 	if credential != nil {
-		credential.AddAuthorization(req)
+		credential.Modify(req)
 	}
 
 	resp, err := client.Do(req)
@@ -73,9 +73,9 @@ func getToken(client *http.Client, credential Credential, realm, service string,
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, &registry_error.HTTPError{
-			StatusCode: resp.StatusCode,
-			Detail:     string(data),
+		return nil, &commonhttp.Error{
+			Code:    resp.StatusCode,
+			Message: string(data),
 		}
 	}
 

@@ -1,4 +1,4 @@
-# Copyright 2016-2017 VMware, Inc. All Rights Reserved.
+# Copyright Project Harbor Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ Documentation  This resource provides any keywords related to the Harbor private
 Resource  ../../resources/Util.robot
 
 *** Variables ***
-${HARBOR_VERSION}  v1.1.1
 
 *** Keywords ***
 Assign User Admin
@@ -26,9 +25,9 @@ Assign User Admin
     Input Text  xpath=//harbor-user//hbr-filter//input  ${user}
     Sleep  2
     #select checkbox
-    Click Element  //clr-dg-row[contains(.,"${user}")]//label
+    Click Element  //clr-dg-row[contains(.,'${user}')]//label
     #click assign admin
-    Click Element  //*[@id="set-admin"]
+    Click Element  //*[@id='set-admin']
     Sleep  1
 
 Switch to User Tag
@@ -43,3 +42,7 @@ User Email Should Exist
     Sign In Harbor  ${HARBOR_URL}  %{HARBOR_ADMIN}  %{HARBOR_PASSWORD}
     Switch to User Tag
     Page Should Contain Element  xpath=//clr-dg-cell[contains(., '${email}')]
+
+Add User Button Should Be Disabled
+    Sleep  1
+    Page Should Contain Element  //button[contains(.,'New') and @disabled='']

@@ -1,65 +1,90 @@
 # Harbor
 
-[![Build Status](https://travis-ci.org/vmware/harbor.svg?branch=master)](https://travis-ci.org/vmware/harbor)
-[![Coverage Status](https://coveralls.io/repos/github/vmware/harbor/badge.svg?branch=master)](https://coveralls.io/github/vmware/harbor?branch=master)
+[![Build Status](https://travis-ci.org/goharbor/harbor.svg?branch=master)](https://travis-ci.org/goharbor/harbor)
+[![Coverage Status](https://coveralls.io/repos/github/goharbor/harbor/badge.svg?branch=master)](https://coveralls.io/github/goharbor/harbor?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/goharbor/harbor)](https://goreportcard.com/report/github.com/goharbor/harbor)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/2095/badge)](https://bestpractices.coreinfrastructure.org/projects/2095)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/c8d726c9cfd047ffaf681449d673f246)](https://www.codacy.com/app/goharbor/harbor?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=goharbor/harbor&amp;utm_campaign=Badge_Grade)
+[![Nightly Status](https://us-central1-eminent-nation-87317.cloudfunctions.net/harbor-nightly-result)](https://www.googleapis.com/storage/v1/b/harbor-nightly/o)
+
+</br>
+
+|![notification](docs/img/bell-outline-badged.svg)Community Meeting|
+|------------------|
+|The Harbor Project holds bi-weekly community calls, to join them and watch previous meeting notes and recordings, please see [meeting schedule](https://github.com/goharbor/community/blob/master/MEETING_SCHEDULE.md).|
+ 
+Welcome to join below Harbor community events and meet with project maintainers and users:
+
+**May 20-24, 2019**, [KubeCon EU, Barcelona](https://events.linuxfoundation.org/events/kubecon-cloudnativecon-europe-2019/): Harbor Community Reception, Intro and Deep-dive sessions.
+
+**June 24-26, 2019**, [KubeCon Shanghai](https://www.lfasiallc.com/events/kubecon-cloudnativecon-china-2019/): Harbor community meetup, Harbor session. 
+</br> </br>
 
 **Note**: The `master` branch may be in an *unstable or even broken state* during development.
 Please use [releases](https://github.com/vmware/harbor/releases) instead of the `master` branch in order to get stable binaries.
 
 <img alt="Harbor" src="docs/img/harbor_logo.png">
 
-Project Harbor is an enterprise-class registry server that stores and distributes Docker images. Harbor extends the open source Docker Distribution by adding the functionalities usually required by an enterprise, such as security, identity and management. As an enterprise private registry, Harbor offers better performance and security. Having a registry closer to the build and run environment improves the image transfer efficiency. Harbor supports the setup of multiple registries and has images replicated between them. In addition, Harbor offers advanced security features, such as user management, access control and activity auditing.
+Harbor is an open source trusted cloud native registry project that stores, signs, and scans content. Harbor extends the open source Docker Distribution by adding the functionalities usually required by users such as security, identity and management. Having a registry closer to the build and run environment can improve the image transfer efficiency. Harbor supports replication of images between registries, and also offers advanced security features such as user management, access control and activity auditing.
 
-### Features
-* **Role based access control**: Users and repositories are organized via 'projects' and a user can have different permission for images under a project.
-* **Policy based image replication**: Images can be replicated (synchronized) between multiple registry instances, with auto-retry on errors. Great for load balancing, high availability, multi-datacenter, hybrid and multi-cloud scenarios.
+Harbor is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF). If you are an organization that wants to help shape the evolution of cloud native technologies, consider joining the CNCF. For details about who's involved and how Harbor plays a role, read the CNCF
+[announcement](https://www.cncf.io/blog/2018/07/31/cncf-to-host-harbor-in-the-sandbox/).
+
+## Features
+
+* **Cloud native registry**: With support for both container images and [Helm](https://helm.sh) charts, Harbor serves as registry for cloud native environments like container runtimes and orchestration platforms.
+* **Role based access control**: Users and repositories are organized via 'projects' and a user can have different permission for images or Helm charts under a project.
+* **Policy based replication**: Images and charts can be replicated (synchronized) between multiple registry instances based on policies with multiple filters (repository, tag and label). Harbor automatically retries a replication if it encounters any errors. Great for load balancing, high availability, multi-datacenter, hybrid and multi-cloud scenarios.
 * **Vulnerability Scanning**: Harbor scans images regularly and warns users of vulnerabilities.
-* **LDAP/AD support**: Harbor integrates with existing enterprise LDAP/AD for user authentication and management.
-* **Image deletion & garbage collection**: Images can be deleted and their space can be recycled. 
-* **Notary**: Image authenticity can be ensured. 
+* **LDAP/AD support**: Harbor integrates with existing enterprise LDAP/AD for user authentication and management, and supports importing LDAP groups into Harbor and assigning proper project roles to them.  
+* **OIDC support**: Harbor leverages OpenID Connect (OIDC) to verify the identity of users authenticated by an external authorization server or identity provider. Single sign-on can be enabled to log into the Harbor portal.  
+* **Image deletion & garbage collection**: Images can be deleted and their space can be recycled.
+* **Notary**: Image authenticity can be ensured.
 * **Graphical user portal**: User can easily browse, search repositories and manage projects.
 * **Auditing**: All the operations to the repositories are tracked.
-* **RESTful API**: RESTful APIs for most administrative operations, easy to integrate with external systems.
-* **Easy deployment**: Provide both an online and offline installer. 
+* **RESTful API**: RESTful APIs for most administrative operations, easy to integrate with external systems. An embedded Swagger UI is available for exploring and testing the API.
+* **Easy deployment**: Provide both an online and offline installer. In addition, a Helm Chart can be used to deploy Harbor on Kubernetes.
 
-### Install & Run
+## Install & Run
 
 **System requirements:**
 
-**On a Linux host:** docker 1.10.0+ and docker-compose 1.6.0+ .
+**On a Linux host:** docker 17.06.0-ce+ and docker-compose 1.18.0+ .
 
 Download binaries of **[Harbor release ](https://github.com/vmware/harbor/releases)** and follow **[Installation & Configuration Guide](docs/installation_guide.md)** to install Harbor.
 
+If you want to deploy Harbor on Kubernetes, please use the **[Harbor chart](https://github.com/goharbor/harbor-helm)**.
+
 Refer to **[User Guide](docs/user_guide.md)** for more details on how to use Harbor.
 
-### Community
-**Twitter:** @project_harbor  
-**User Group:** Join Harbor user email group: harbor-users@googlegroups.com to get update of Harbor's news, features, releases, or to provide suggestion and feedback. To subscribe, send an email to harbor-users+subscribe@googlegroups.com .  
-**Developer Group:** Join Harbor developer group: harbor-dev@googlegroups.com for discussion on Harbor development and contribution.To subscribe, send an email to harbor-dev+subscribe@googlegroups.com .  
-**Slack:** Join Harbor's community for discussion and ask questions: [VMware {code}](https://code.vmware.com/join/), Channel: #harbor.  
+## Community
 
-More info on [partners and users](partners.md).
+* **Twitter:** [@project_harbor](https://twitter.com/project_harbor)  
+* **User Group:** Join Harbor user email group: [harbor-users@lists.cncf.io](https://lists.cncf.io/g/harbor-users) to get update of Harbor's news, features, releases, or to provide suggestion and feedback.  
+* **Developer Group:** Join Harbor developer group: [harbor-dev@lists.cncf.io](https://lists.cncf.io/g/harbor-dev) for discussion on Harbor development and contribution.
+* **Slack:** Join Harbor's community for discussion and ask questions: [Cloud Native Computing Foundation](https://slack.cncf.io/), channel: [#harbor](https://cloud-native.slack.com/messages/harbor/) and [#harbor-dev](https://cloud-native.slack.com/messages/harbor-dev/)
 
-### Contribution
-We welcome contributions from the community. If you wish to contribute code and you have not signed our contributor license agreement (CLA), our bot will update the issue when you open a pull request. For any questions about the CLA process, please refer to our [FAQ](https://cla.vmware.com/faq). Contact us for any questions: harbor@vmware.com .
+## Additional Tools
 
-### Demos
-* ![play](docs/img/video.png) **Content Trust** ( [youtube](https://www.youtube.com/watch?v=pPklSTJZY2E) , [Tencent Video](https://v.qq.com/x/page/n0553fzzrnf.html) )
-* ![play](docs/img/video.png) **Role Based Access Control** ( [youtube](https://www.youtube.com/watch?v=2ZIu9XTvsC0) , [Tencent Video](https://v.qq.com/x/page/l0553yw19ek.html) )
-* ![play](docs/img/video.png) **Vulnerability Scanning** ( [youtube](https://www.youtube.com/watch?v=K4tJ6B2cGR4) , [Tencent Video](https://v.qq.com/x/page/s0553k9692d.html) )
-* ![play](docs/img/video.png) **Image Replication** ( [youtube](https://www.youtube.com/watch?v=1NPlzrm5ozE) , [Tencent Video](https://v.qq.com/x/page/a0553wc7fs9.html) )
-* ![play](docs/img/video.png) **VMworld 2017** ( [youtube](https://www.youtube.com/watch?v=tI5xMe24fJ4) )
+Tools layered on top of Harbor and contributed by community.
 
-### License
+* **[Harbor.Tagd](https://github.com/HylandSoftware/Harbor.Tagd)**
+  - Automates the process of cleaning up old tags from your Harbor container registries.
+  - Lead by [@nlowe](https://github.com/nlowe) from HylandSoftware.
+
+## Demos
+
+* **[Live Demo](https://demo.goharbor.io)** - A demo environment with the latest Harbor stable build installed. For additional information please refer to [this page](docs/demo_server.md).
+* **[Video Demos](https://github.com/goharbor/harbor/wiki/Video-demos-for-Harbor)** - Demos for Harbor features and continuously updated.
+
+## Partners and Users
+
+For a list of users, please refer to [ADOPTERS.md](ADOPTERS.md).
+
+## License
+
 Harbor is available under the [Apache 2 license](LICENSE).
 
 This project uses open source components which have additional licensing terms.  The official docker images and licensing terms for these open source components can be found at the following locations:
 
 * Photon OS 1.0: [docker image](https://hub.docker.com/_/photon/), [license](https://github.com/vmware/photon/blob/master/COPYING)
-* MySQL 5.6: [docker image](https://hub.docker.com/_/mysql/), [license](https://github.com/docker-library/mysql/blob/master/LICENSE)
-
-### Commercial Support
-If you need commercial support of Harbor, please contact us for more information: harbor at vmware.com .
-
-
-
