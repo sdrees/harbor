@@ -1,5 +1,6 @@
 !/contrib/helm/harbor
 
+make/harbor.yml
 make/docker-compose.yml
 make/common/config/*
 make/dev/adminserver/harbor_adminserver
@@ -32,7 +33,7 @@ src/portal/typings/
 
 src/portal/src/**/*.js
 src/portal/src/**/*.js.map
-
+src/portal/src/lib/coverage
 **/npm*.log
 
 **/*ngsummary.json
@@ -41,3 +42,4 @@ src/portal/src/**/*.js.map
 **/dist
 **/.bin
 src/core/conf/app.conf
+

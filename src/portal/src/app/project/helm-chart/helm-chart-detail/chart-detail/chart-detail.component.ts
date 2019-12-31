@@ -1,4 +1,3 @@
-import { downloadFile, SystemInfoService, SystemInfo, ErrorHandler } from "@harbor/ui";
 import {
   Component,
   OnInit,
@@ -11,6 +10,9 @@ import { Project } from "../../../project";
 import { HelmChartService } from "../../helm-chart.service";
 import { HelmChartDetail } from "../../helm-chart.interface.service";
 import { finalize } from "rxjs/operators";
+import { SystemInfo, SystemInfoService } from "../../../../../lib/services";
+import { ErrorHandler } from "../../../../../lib/utils/error-handler";
+import { downloadFile } from "../../../../../lib/utils/utils";
 
 @Component({
   selector: "hbr-chart-detail",
@@ -44,12 +46,16 @@ export class ChartDetailComponent implements OnInit {
   ngOnInit(): void {
     this.systemInfoService.getSystemInfo()
       .subscribe(systemInfo => {
-        let scheme = 'http://';
         this.systemInfo = systemInfo;
-        if (this.systemInfo.has_ca_root) {
-          scheme = 'https://';
+        if (this.systemInfo.external_url) {
+          this.repoURL = `${this.systemInfo.external_url}`;
+        } else {
+          let scheme = 'http://';
+          if (this.systemInfo.has_ca_root) {
+            scheme = 'https://';
+          }
+          this.repoURL = `${scheme}${this.systemInfo.registry_url}`;
         }
-        this.repoURL = `${scheme}${this.systemInfo.registry_url}`;
       }, error => this.errorHandler.error(error));
     this.refresh();
   }

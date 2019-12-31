@@ -32,24 +32,26 @@ import (
 	"github.com/goharbor/harbor/src/common/utils"
 	"github.com/goharbor/harbor/src/common/utils/log"
 	"github.com/goharbor/harbor/src/core/api"
+	quota "github.com/goharbor/harbor/src/core/api/quota"
+	_ "github.com/goharbor/harbor/src/core/api/quota/chart"
+	_ "github.com/goharbor/harbor/src/core/api/quota/registry"
 	_ "github.com/goharbor/harbor/src/core/auth/authproxy"
 	_ "github.com/goharbor/harbor/src/core/auth/db"
 	_ "github.com/goharbor/harbor/src/core/auth/ldap"
 	_ "github.com/goharbor/harbor/src/core/auth/oidc"
 	_ "github.com/goharbor/harbor/src/core/auth/uaa"
-
-	quota "github.com/goharbor/harbor/src/core/api/quota"
-	_ "github.com/goharbor/harbor/src/core/api/quota/chart"
-	_ "github.com/goharbor/harbor/src/core/api/quota/registry"
-
 	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/core/filter"
 	"github.com/goharbor/harbor/src/core/middlewares"
 	_ "github.com/goharbor/harbor/src/core/notifier/topic"
 	"github.com/goharbor/harbor/src/core/service/token"
 	"github.com/goharbor/harbor/src/pkg/notification"
+	"github.com/goharbor/harbor/src/pkg/scan"
+	"github.com/goharbor/harbor/src/pkg/scan/dao/scanner"
+	"github.com/goharbor/harbor/src/pkg/scan/event"
 	"github.com/goharbor/harbor/src/pkg/scheduler"
 	"github.com/goharbor/harbor/src/pkg/types"
+	"github.com/goharbor/harbor/src/pkg/version"
 	"github.com/goharbor/harbor/src/replication"
 )
 
@@ -85,14 +87,19 @@ func updateInitPassword(userID int, password string) error {
 
 // Quota migration
 func quotaSync() error {
-	usages, err := dao.ListQuotaUsages()
-	if err != nil {
-		log.Errorf("list quota usage error, %v", err)
-		return err
-	}
 	projects, err := dao.GetProjects(nil)
 	if err != nil {
 		log.Errorf("list project error, %v", err)
+		return err
+	}
+
+	var pids []string
+	for _, project := range projects {
+		pids = append(pids, strconv.FormatInt(project.ProjectID, 10))
+	}
+	usages, err := dao.ListQuotaUsages(&models.QuotaUsageQuery{Reference: "project", ReferenceIDs: pids})
+	if err != nil {
+		log.Errorf("list quota usage error, %v", err)
 		return err
 	}
 
@@ -157,7 +164,7 @@ func gracefulShutdown(closing, done chan struct{}) {
 
 func main() {
 	beego.BConfig.WebConfig.Session.SessionOn = true
-	beego.BConfig.WebConfig.Session.SessionName = "sid"
+	beego.BConfig.WebConfig.Session.SessionName = config.SessionCookieName
 
 	redisURL := os.Getenv("_REDIS_URL")
 	if len(redisURL) > 0 {
@@ -168,9 +175,7 @@ func main() {
 	beego.AddTemplateExt("htm")
 
 	log.Info("initializing configurations...")
-	if err := config.Init(); err != nil {
-		log.Fatalf("failed to initialize configurations: %v", err)
-	}
+	config.Init()
 	log.Info("configurations initialization completed")
 	token.InitCreators()
 	database, err := config.Database()
@@ -210,6 +215,22 @@ func main() {
 		if err := dao.InitClairDB(clairDB); err != nil {
 			log.Fatalf("failed to initialize clair database: %v", err)
 		}
+
+		reg := &scanner.Registration{
+			Name:            "Clair",
+			Description:     "The clair scanner adapter",
+			URL:             config.ClairAdapterEndpoint(),
+			UseInternalAddr: true,
+			Immutable:       true,
+		}
+
+		if err := scan.EnsureScanner(reg, true); err != nil {
+			log.Fatalf("failed to initialize clair scanner: %v", err)
+		}
+	} else {
+		if err := scan.RemoveImmutableScanners(); err != nil {
+			log.Warningf("failed to remove immutable scanners: %v", err)
+		}
 	}
 
 	closing := make(chan struct{})
@@ -221,11 +242,13 @@ func main() {
 
 	log.Info("initializing notification...")
 	notification.Init()
+	// Initialize the event handlers for handling artifact cascade deletion
+	event.Init()
 
 	filter.Init()
+	beego.InsertFilter("/api/*", beego.BeforeStatic, filter.SessionCheck)
 	beego.InsertFilter("/*", beego.BeforeRouter, filter.SecurityFilter)
 	beego.InsertFilter("/*", beego.BeforeRouter, filter.ReadonlyFilter)
-	beego.InsertFilter("/api/*", beego.BeforeRouter, filter.MediaTypeFilter("application/json", "multipart/form-data", "application/octet-stream"))
 
 	initRouters()
 
@@ -249,9 +272,21 @@ func main() {
 		log.Fatalf("init proxy error, %v", err)
 	}
 
-	if err := quotaSync(); err != nil {
-		log.Fatalf("quota migration error, %v", err)
+	syncQuota := os.Getenv("SYNC_QUOTA")
+	doSyncQuota, err := strconv.ParseBool(syncQuota)
+	if err != nil {
+		log.Errorf("Failed to parse SYNC_QUOTA: %v", err)
+		doSyncQuota = true
+	}
+	if doSyncQuota {
+		if err := quotaSync(); err != nil {
+			log.Fatalf("quota migration error, %v", err)
+		}
+	} else {
+		log.Infof("Because SYNC_QUOTA set false , no need to sync quota \n")
 	}
 
+	log.Infof("Version: %s, Git commit: %s", version.ReleaseVersion, version.GitCommit)
 	beego.Run()
+
 }

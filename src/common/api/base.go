@@ -20,11 +20,12 @@ import (
 	"net/http"
 	"strconv"
 
+	"errors"
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/validation"
 	commonhttp "github.com/goharbor/harbor/src/common/http"
 	"github.com/goharbor/harbor/src/common/utils/log"
-	"github.com/pkg/errors"
+	internal_errors "github.com/goharbor/harbor/src/internal/error"
 )
 
 const (
@@ -46,6 +47,11 @@ func (b *BaseAPI) GetStringFromPath(key string) string {
 func (b *BaseAPI) GetInt64FromPath(key string) (int64, error) {
 	value := b.Ctx.Input.Param(key)
 	return strconv.ParseInt(value, 10, 64)
+}
+
+// ParamExistsInPath returns true when param exists in the path
+func (b *BaseAPI) ParamExistsInPath(key string) bool {
+	return b.GetStringFromPath(key) != ""
 }
 
 // Render returns nil as it won't render template
@@ -242,4 +248,49 @@ func (b *BaseAPI) SendPreconditionFailedError(err error) {
 // SendStatusServiceUnavailableError sends service unavailable error to the client.
 func (b *BaseAPI) SendStatusServiceUnavailableError(err error) {
 	b.RenderFormattedError(http.StatusServiceUnavailable, err.Error())
+}
+
+// SendError return the error defined in OCI spec: https://github.com/opencontainers/distribution-spec/blob/master/spec.md#errors
+// {
+//	"errors:" [{
+//			"code": <error identifier>,
+//			"message": <message describing condition>,
+//			// optional
+//			"detail": <unstructured>
+//		},
+//		...
+//	]
+// }
+func (b *BaseAPI) SendError(err error) {
+	var statusCode int
+	var send error
+
+	var e *internal_errors.Error
+	if errors.As(err, &e) {
+		code := e.Code
+		statusCode = b.getStatusCode(code)
+		if statusCode == 0 {
+			statusCode = http.StatusInternalServerError
+		}
+		send = e
+
+	} else {
+		statusCode = http.StatusInternalServerError
+		send = internal_errors.UnknownError(err)
+	}
+
+	b.RenderError(statusCode, internal_errors.NewErrs(send).Error())
+}
+
+func (b *BaseAPI) getStatusCode(code string) int {
+	statusCodeMap := map[string]int{
+		internal_errors.NotFoundCode:     http.StatusNotFound,
+		internal_errors.ConflictCode:     http.StatusConflict,
+		internal_errors.UnAuthorizedCode: http.StatusUnauthorized,
+		internal_errors.BadRequestCode:   http.StatusBadRequest,
+		internal_errors.ForbiddenCode:    http.StatusForbidden,
+		internal_errors.PreconditionCode: http.StatusPreconditionFailed,
+		internal_errors.GeneralCode:      http.StatusInternalServerError,
+	}
+	return statusCodeMap[code]
 }

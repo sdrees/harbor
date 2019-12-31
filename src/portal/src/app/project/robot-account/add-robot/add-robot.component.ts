@@ -14,10 +14,11 @@ import { Subject } from "rxjs";
 import { debounceTime, finalize } from "rxjs/operators";
 import { RobotService } from "../robot-account.service";
 import { TranslateService } from "@ngx-translate/core";
-import { ErrorHandler } from "@harbor/ui";
 import { MessageHandlerService } from "../../../shared/message-handler/message-handler.service";
 import { InlineAlertComponent } from "../../../shared/inline-alert/inline-alert.component";
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { AppConfigService } from "../../../app-config.service";
+import { ErrorHandler } from "../../../../lib/utils/error-handler";
 
 @Component({
   selector: "add-robot",
@@ -43,6 +44,7 @@ export class AddRobotComponent implements OnInit, OnDestroy {
   robotForm: NgForm;
   imagePermissionPush: boolean = true;
   imagePermissionPull: boolean = true;
+  withHelmChart: boolean;
   @Input() projectId: number;
   @Input() projectName: string;
   @Output() create = new EventEmitter<boolean>();
@@ -54,10 +56,13 @@ export class AddRobotComponent implements OnInit, OnDestroy {
       private errorHandler: ErrorHandler,
       private cdr: ChangeDetectorRef,
       private messageHandlerService: MessageHandlerService,
-      private sanitizer: DomSanitizer
-  ) {}
+      private sanitizer: DomSanitizer,
+      private appConfigService: AppConfigService
 
+  ) {}
   ngOnInit(): void {
+    this.withHelmChart = this.appConfigService.getConfig().with_chartmuseum;
+
     this.robotNameChecker.pipe(debounceTime(800)).subscribe((name: string) => {
       let cont = this.currentForm.controls["robot_name"];
       if (cont) {

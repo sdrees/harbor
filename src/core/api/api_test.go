@@ -174,12 +174,13 @@ func runCodeCheckingCases(t *testing.T, cases ...*codeCheckingCase) {
 			if resp.Body.Len() > 0 {
 				t.Log(resp.Body.String())
 			}
-			continue
+			t.FailNow()
 		}
 
 		if c.postFunc != nil {
 			if err := c.postFunc(resp); err != nil {
 				t.Logf("error in running post function: %v", err)
+				t.Error(err)
 			}
 		}
 	}

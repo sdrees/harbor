@@ -22,7 +22,6 @@ import (
 	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/core/promgr"
 	"github.com/goharbor/harbor/src/pkg/types"
-	"math/rand"
 	"strconv"
 	"time"
 )
@@ -38,7 +37,7 @@ type QuotaMigrator interface {
 	// Usage computes the quota usage of all the projects
 	Usage([]ProjectInfo) ([]ProjectUsage, error)
 
-	// Persist record the data to DB, artifact, artifact_blob and blob tabel.
+	// Persist record the data to DB, artifact, artifact_blob and blob table.
 	Persist([]ProjectInfo) error
 }
 
@@ -80,7 +79,6 @@ func Register(name string, adapter Instance) {
 
 // Sync ...
 func Sync(pm promgr.ProjectManager, populate bool) error {
-	rand.Seed(time.Now().UnixNano())
 	totalUsage := make(map[string][]ProjectUsage)
 	for name, instanceFunc := range adapters {
 		if !config.WithChartMuseum() {

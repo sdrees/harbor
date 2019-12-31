@@ -52,13 +52,18 @@ func (s *SecurityContext) GetUsername() string {
 	return s.user.Username
 }
 
+// User get the current user
+func (s *SecurityContext) User() *models.User {
+	return s.user
+}
+
 // IsSysAdmin returns whether the authenticated user is system admin
 // It returns false if the user has not been authenticated
 func (s *SecurityContext) IsSysAdmin() bool {
 	if !s.IsAuthenticated() {
 		return false
 	}
-	return s.user.HasAdminRole
+	return s.user.SysAdminFlag || s.user.AdminRoleInAuth
 }
 
 // IsSolutionUser ...
@@ -125,6 +130,8 @@ func (s *SecurityContext) GetProjectRoles(projectIDOrName interface{}) []int {
 			roles = append(roles, common.RoleDeveloper)
 		case "RS":
 			roles = append(roles, common.RoleGuest)
+		case "LRS":
+			roles = append(roles, common.RoleLimitedGuest)
 		}
 	}
 	return mergeRoles(roles, s.GetRolesByGroup(projectIDOrName))

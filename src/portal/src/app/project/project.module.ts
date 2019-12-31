@@ -18,6 +18,7 @@ import { SharedModule } from '../shared/shared.module';
 import { RepositoryModule } from '../repository/repository.module';
 import { ReplicationModule } from '../replication/replication.module';
 import { SummaryModule } from './summary/summary.module';
+import { TagFeatureIntegrationModule } from './tag-feature-integration/tag-feature-integration.module';
 import { LogModule } from '../log/log.module';
 
 import { ProjectComponent } from './project.component';
@@ -40,13 +41,12 @@ import { HelmChartModule } from './helm-chart/helm-chart.module';
 import { RobotAccountComponent } from './robot-account/robot-account.component';
 import { AddRobotComponent } from './robot-account/add-robot/add-robot.component';
 import { AddHttpAuthGroupComponent } from './member/add-http-auth-group/add-http-auth-group.component';
-import { TagRetentionComponent } from "./tag-retention/tag-retention.component";
-import { AddRuleComponent } from "./tag-retention/add-rule/add-rule.component";
-import { TagRetentionService } from "./tag-retention/tag-retention.service";
 import { WebhookService } from './webhook/webhook.service';
 import { WebhookComponent } from './webhook/webhook.component';
 import { AddWebhookComponent } from './webhook/add-webhook/add-webhook.component';
 import { AddWebhookFormComponent } from './webhook/add-webhook-form/add-webhook-form.component';
+import { ScannerComponent } from "./scanner/scanner.component";
+import { ConfigScannerService } from "../config/scanner/config-scanner.service";
 
 @NgModule({
   imports: [
@@ -56,7 +56,8 @@ import { AddWebhookFormComponent } from './webhook/add-webhook-form/add-webhook-
     LogModule,
     RouterModule,
     HelmChartModule,
-    SummaryModule
+    SummaryModule,
+    TagFeatureIntegrationModule,
   ],
   declarations: [
     ProjectComponent,
@@ -71,14 +72,13 @@ import { AddWebhookFormComponent } from './webhook/add-webhook-form/add-webhook-
     RobotAccountComponent,
     AddRobotComponent,
     AddHttpAuthGroupComponent,
-    TagRetentionComponent,
-    AddRuleComponent,
     WebhookComponent,
     AddWebhookComponent,
     AddWebhookFormComponent,
+    ScannerComponent,
   ],
   exports: [ProjectComponent, ListProjectComponent],
-  providers: [ProjectRoutingResolver, MemberService, RobotService, TagRetentionService, WebhookService]
+  providers: [ProjectRoutingResolver, MemberService, RobotService, WebhookService, ConfigScannerService]
 })
 export class ProjectModule {
 

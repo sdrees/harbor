@@ -19,7 +19,7 @@ import { SessionService } from '../../shared/session.service';
 @Component({
   selector: 'repository',
   templateUrl: 'tag-detail-page.component.html',
-  styles: ['.arrow-block a{text-decoration: none; cursor: pointer; cursor: pointer; color: #007cbb; font-size: 12px;}']
+  styleUrls: ["tag-detail-page.component.scss"]
 })
 export class TagDetailPageComponent implements OnInit {
   tagId: string;
@@ -42,10 +42,6 @@ export class TagDetailPageComponent implements OnInit {
 
   get withAdmiral(): boolean {
     return this.appConfigService.getConfig().with_admiral;
-  }
-
-  get withClair(): boolean {
-    return this.appConfigService.getConfig().with_clair;
   }
 
   goBack(tag: string): void {

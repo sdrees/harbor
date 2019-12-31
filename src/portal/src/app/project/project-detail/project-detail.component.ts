@@ -13,14 +13,12 @@
 // limitations under the License.
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-
 import { Project } from '../project';
-
 import { SessionService } from '../../shared/session.service';
-
 import { AppConfigService } from "../../app-config.service";
-import { UserPermissionService, USERSTATICPERMISSION, ErrorHandler, ProjectService } from "@harbor/ui";
 import { forkJoin } from "rxjs";
+import { ProjectService, UserPermissionService, USERSTATICPERMISSION } from "../../../lib/services";
+import { ErrorHandler } from "../../../lib/utils/error-handler";
 @Component({
   selector: 'project-detail',
   templateUrl: 'project-detail.component.html',
@@ -45,6 +43,75 @@ export class ProjectDetailComponent implements OnInit {
   hasRobotListPermission: boolean;
   hasTagRetentionPermission: boolean;
   hasWebhookListPermission: boolean;
+  hasScannerReadPermission: boolean;
+  tabLinkNavList = [
+    {
+      linkName: "summary",
+      tabLinkInOverflow: false,
+      showTabName: "PROJECT_DETAIL.SUMMARY",
+      permissions: () => this.hasProjectReadPermission
+    },
+    {
+      linkName: "repositories",
+      tabLinkInOverflow: false,
+      showTabName: "PROJECT_DETAIL.REPOSITORIES",
+      permissions: () => this.hasRepositoryListPermission
+    },
+    {
+      linkName: "helm-charts",
+      tabLinkInOverflow: false,
+      showTabName: "PROJECT_DETAIL.HELMCHART",
+      permissions: () => this.withHelmChart && this.hasHelmChartsListPermission
+    },
+    {
+      linkName: "members",
+      tabLinkInOverflow: false,
+      showTabName: "PROJECT_DETAIL.USERS",
+      permissions: () => this.hasMemberListPermission
+    },
+    {
+      linkName: "labels",
+      tabLinkInOverflow: false,
+      showTabName: "PROJECT_DETAIL.LABELS",
+      permissions: () => (this.hasLabelListPermission && this.hasLabelCreatePermission) && !this.withAdmiral
+    },
+    {
+      linkName: "scanner",
+      tabLinkInOverflow: false,
+      showTabName: "SCANNER.SCANNER",
+      permissions: () => this.hasScannerReadPermission
+    },
+    {
+      linkName: "configs",
+      tabLinkInOverflow: false,
+      showTabName: "PROJECT_DETAIL.CONFIG",
+      permissions: () => this.isSessionValid && this.hasConfigurationListPermission
+    },
+    {
+      linkName: "tag-strategy",
+      tabLinkInOverflow: true,
+      showTabName: "PROJECT_DETAIL.TAG_STRATEGY",
+      permissions: () => this.hasTagRetentionPermission
+    },
+    {
+      linkName: "robot-account",
+      tabLinkInOverflow: true,
+      showTabName: "PROJECT_DETAIL.ROBOT_ACCOUNTS",
+      permissions: () => this.hasRobotListPermission
+    },
+    {
+      linkName: "webhook",
+      tabLinkInOverflow: true,
+      showTabName: "PROJECT_DETAIL.WEBHOOKS",
+      permissions: () => this.hasWebhookListPermission
+    },
+    {
+      linkName: "logs",
+      tabLinkInOverflow: true,
+      showTabName: "PROJECT_DETAIL.LOGS",
+      permissions: () => this.hasLogListPermission
+    }
+  ];
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -89,11 +156,14 @@ export class ProjectDetailComponent implements OnInit {
         USERSTATICPERMISSION.TAG_RETENTION.KEY, USERSTATICPERMISSION.TAG_RETENTION.VALUE.READ));
     permissionsList.push(this.userPermissionService.getPermission(projectId,
       USERSTATICPERMISSION.WEBHOOK.KEY, USERSTATICPERMISSION.WEBHOOK.VALUE.LIST));
+    permissionsList.push(this.userPermissionService.getPermission(projectId,
+        USERSTATICPERMISSION.SCANNER.KEY, USERSTATICPERMISSION.SCANNER.VALUE.READ));
 
     forkJoin(...permissionsList).subscribe(Rules => {
       [this.hasProjectReadPermission, this.hasLogListPermission, this.hasConfigurationListPermission, this.hasMemberListPermission
         , this.hasLabelListPermission, this.hasRepositoryListPermission, this.hasHelmChartsListPermission, this.hasRobotListPermission
-        , this.hasLabelCreatePermission, this.hasTagRetentionPermission, this.hasWebhookListPermission] = Rules;
+        , this.hasLabelCreatePermission, this.hasTagRetentionPermission, this.hasWebhookListPermission,
+        this.hasScannerReadPermission] = Rules;
     }, error => this.errorHandler.error(error));
   }
 
@@ -114,6 +184,14 @@ export class ProjectDetailComponent implements OnInit {
       window.sessionStorage.setItem('fromDetails', 'true');
     }
     this.router.navigate(['/harbor', 'projects']);
+  }
+  isDefaultTab(tab, index) {
+    return this.route.snapshot.children[0].routeConfig.path !== tab.linkName && index === 0;
+  }
+  isTabLinkInOverFlow() {
+    return this.tabLinkNavList.some(tab => {
+      return tab.tabLinkInOverflow && this.route.snapshot.children[0].routeConfig.path === tab.linkName;
+    });
   }
 
 }

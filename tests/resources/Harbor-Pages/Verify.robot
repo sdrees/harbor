@@ -26,9 +26,8 @@ Verify Project
     Init Chrome Driver
     Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
     :FOR    ${project}    IN    @{project}
-    \    Page Should Contain    ${project}
-    #TO_DO:
-    #Verify project metadata.
+    \    Retry Wait Until Page Contains    ${project}
+    Verify Project Metadata  ${json}
     Close Browser
 
 Verify Image Tag
@@ -40,10 +39,37 @@ Verify Image Tag
     \    @{out_has_image}=  Get Value From Json  ${json}  $.projects[?(@.name=${project})].has_image
     \    ${has_image}  Set Variable If  @{out_has_image}[0] == ${true}  ${true}  ${false}
     \    Go Into Project  ${project}  has_image=${has_image}
-    \    @{repo}=  Get Value From Json  ${json}  $.projects[?(@name=${project})]..repo..name
-    \    Loop Image Repo  @{repo}
+    \    @{repo}=  Get Value From Json  ${json}  $.projects[?(@.name=${project})]..repo..name
+    \    Run Keyword If  ${has_image} == ${true}  Loop Image Repo  @{repo}
     \    Navigate To Projects
     Close Browser
+
+Verify Project Metadata
+    [Arguments]    ${json}
+    @{project}=  Get Value From Json  ${json}  $.projects.[*].name
+    Init Chrome Driver
+    Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
+    :FOR    ${project}    IN    @{project}
+    \    @{out_has_image}=  Get Value From Json  ${json}  $.projects[?(@.name=${project})].has_image
+    \    ${has_image}  Set Variable If  @{out_has_image}[0] == ${true}  ${true}  ${false}
+    \    Go Into Project  ${project}  has_image=${has_image}
+    \    Switch To Project Configuration
+    \    Verify Checkbox  ${json}  $.projects[?(@.name=${project})].configuration.public  ${project_config_public_checkbox}
+    \    Verify Checkbox  ${json}  $.projects[?(@.name=${project})].configuration.enable_content_trust  ${project_config_content_trust_checkbox}
+    \    Verify Checkbox  ${json}  $.projects[?(@.name=${project})].configuration.auto_scan  ${project_config_scan_images_on_push_checkbox}
+    \    Verify Checkbox  ${json}  $.projects[?(@.name=${project})].configuration.prevent_vul  ${project_config_prevent_vulnerable_images_from_running_checkbox}
+    \    ${ret}    Get Selected List Value    ${project_config_severity_select}
+    \    @{severity}=    Get Value From Json    ${json}    $.projects[?(@.name=${project})].configuration.severity
+    \    Should Contain    ${ret}    @{severity}[0]
+    \    Navigate To Projects
+    Close Browser
+
+Verify Checkbox
+    [Arguments]    ${json}    ${key}    ${checkbox}
+    @{out}=    Get Value From Json    ${json}    ${key}
+    Run Keyword If    '@{out}[0]'=='true'    Checkbox Should Be Selected    ${checkbox}
+    ...    ELSE    Checkbox Should Not Be Selected    ${checkbox}
+
 
 Loop Image Repo
     [Arguments]    @{repo}
@@ -60,7 +86,7 @@ Verify Member Exist
     \   ${has_image}  Set Variable If  @{out_has_image}[0] == ${true}  ${true}  ${false}
     \   Go Into Project  ${project}  has_image=${has_image}
     \   Switch To Member
-    \   @{members}=  Get Value From Json  ${json}  $.projects[?(@name=${project})].member..name
+    \   @{members}=  Get Value From Json  ${json}  $.projects[?(@.name=${project})].member..name
     \   Loop Member  @{members}
     \   Navigate To Projects
     Close Browser
@@ -76,10 +102,10 @@ Verify User System Admin Role
     Init Chrome Driver
     :FOR    ${user}    IN    @{user}
     \    Sign In Harbor  ${HARBOR_URL}  ${user}  ${HARBOR_PASSWORD}
-    \    Page Should Contain  Administration 
+    \    Page Should Contain  Administration
     \    Logout Harbor
     Close Browser
-  
+
 Verify System Label
     [Arguments]    ${json}
     @{label}=   Get Value From Json  ${json}  $..syslabel..name
@@ -106,7 +132,7 @@ Verify Project Label
     \    \    Page Should Contain    ${projectlabel}
     \    Navigate To Projects
    Close Browser
-      
+
 Verify Endpoint
     [Arguments]    ${json}
     @{endpoint}=  Get Value From Json  ${json}  $.endpoint..name
@@ -119,12 +145,40 @@ Verify Endpoint
 
 Verify Replicationrule
     [Arguments]    ${json}
-    @{replicationrule}=  Get Value From Json  ${json}  $.replicationrule..name
-    Init Chrome Driver
-    Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
-    Switch To Replication Manage
-    :For    ${replicationrule}    IN    @{replicationrule}
-    \    Page Should Contain    ${replicationrule}
+    @{replicationrules}=    Get Value From Json    ${json}    $.replicationrule.[*].rulename
+    @{endpoints}=    Get Value From Json    ${json}    $.endpoint.[*].name
+    : FOR    ${replicationrule}    IN    @{replicationrules}
+    \    Init Chrome Driver
+    \    Log To Console    -----replicationrule-----"${replicationrule}"------------
+    \    Sign In Harbor    ${HARBOR_URL}    ${HARBOR_ADMIN}    ${HARBOR_PASSWORD}
+    \    Switch To Replication Manage
+    \    Select Rule And Click Edit Button    ${replicationrule}
+    \    @{is_src_registry}=    Get Value From Json    ${json}    $.replicationrule[?(@.rulename=${replicationrule})].is_src_registry
+    \    @{trigger_type}=    Get Value From Json    ${json}    $.replicationrule[?(@.rulename=${replicationrule})].trigger_type
+    \    @{name_filters}=    Get Value From Json    ${json}    $.replicationrule[?(@.rulename=${replicationrule})].name_filters
+    \    @{tag_filters}=    Get Value From Json    ${json}    $.replicationrule[?(@.rulename=${replicationrule})].tag_filters
+    \    @{dest_namespace}=    Get Value From Json    ${json}    $.replicationrule[?(@.rulename=${replicationrule})].dest_namespace
+    \    @{cron}=    Get Value From Json    ${json}    $.replicationrule[?(@.rulename=${replicationrule})].cron
+    \    @{is_src_registry}=    Get Value From Json    ${json}    $.replicationrule[?(@.rulename=${replicationrule})].is_src_registry
+    \    Log To Console    -----is_src_registry-----@{is_src_registry}[0]------------
+    \    @{endpoint}=    Get Value From Json    ${json}    $.replicationrule[?(@.rulename=${replicationrule})].endpoint
+    \    Log To Console    -----endpoint-----@{endpoint}------------
+    \    ${endpoint0}=   Set Variable    @{endpoint}[0]
+    \    Log To Console    -----endpoint0-----${endpoint0}------------
+    \    @{endpoint_type}=    Get Value From Json    ${json}    $.endpoint[?(@.name=${endpoint0})].type
+    \    Retry Textfield Value Should Be    ${source_project}    @{name_filters}[0]
+    \    Retry Textfield Value Should Be    ${filter_tag}    @{tag_filters}[0]
+    \    Retry Textfield Value Should Be    ${rule_name_input}    ${replicationrule}
+    \    Retry Textfield Value Should Be    ${dest_namespace_xpath}    @{dest_namespace}[0]
+    \    Log To Console    -----endpoint_type-----@{endpoint_type}[0]------------
+    \    ${registry}=    Set Variable If    "@{endpoint_type}[0]"=="harbor"    ${endpoint0}-https://${IP}    ${endpoint0}-https://hub.docker.com
+    \    Log To Console    -------registry---${registry}------------
+    \    Run Keyword If    '@{is_src_registry}[0]' == '${true}'    Retry List Selection Should Be    ${src_registry_dropdown_list}    ${registry}
+    \    ...    ELSE    Retry List Selection Should Be    ${dest_registry_dropdown_list}    ${registry}
+    \    #\    Retry List Selection Should Be    ${rule_resource_selector}    ${resource_type}
+    \    Retry List Selection Should Be    ${rule_trigger_select}    @{trigger_type}[0]
+    \    Run Keyword If    '@{trigger_type}[0]' == 'scheduled'    Log To Console    ----------@{trigger_type}[0]------------
+    \    Run Keyword If    '@{trigger_type}[0]' == 'scheduled'    Retry Textfield Value Should Be    ${targetCron_id}    @{cron}[0]
     Close Browser
 
 Verify Project Setting
@@ -135,7 +189,7 @@ Verify Project Setting
     \    ${contenttrust}=  Get Value From Json  ${json}  $.projects[?(@.name=${project})]..enable_content_trust
     \    ${preventrunning}=  Get Value From Json  ${json}  $.projects[?(@.name=${project})]..prevent_vulnerable_images_from_running
     \    ${scanonpush}=  Get Value From Json  ${json}  $.projects[?(@.name=${project})]..automatically_scan_images_on_push
-    \    Init Chrome Driver 
+    \    Init Chrome Driver
     \    Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
     \    @{out_has_image}=  Get Value From Json  ${json}  $.projects[?(@.name=${project})].has_image
     \    ${has_image}  Set Variable If  @{out_has_image}[0] == ${true}  ${true}  ${false}
@@ -176,7 +230,8 @@ Verify System Setting
     ${ret}  Get Selected List Value  xpath=//select[@id='proCreation']
     Should Be Equal As Strings  ${ret}  @{creation}[0]
     Token Must Be Match  @{token}[0]
-    Switch To Vulnerability Page
-    Page Should Contain  None
+    #ToDo:These 2 lines below should be uncommented right after issue 9211 was fixed
+    #Switch To Vulnerability Page
+    #Page Should Contain  None
     Close Browser
 

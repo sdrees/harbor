@@ -1,10 +1,10 @@
 import { Component, Input, Output, OnInit, EventEmitter, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { fromEvent, Subject } from 'rxjs';
 import { debounceTime, finalize } from 'rxjs/operators';
-
 import { HelmChartVersion } from '../helm-chart.interface.service';
-import { Label, LabelService, ErrorHandler } from '@harbor/ui';
 import { ResourceType } from '../../../shared/shared.const';
+import { Label, LabelService } from "../../../../lib/services";
+import { ErrorHandler } from "../../../../lib/utils/error-handler";
 
 @Component({
     selector: 'hbr-resource-label-marker',
@@ -30,7 +30,7 @@ export class LabelMarkerComponent implements OnInit {
 
     labelChangeDebouncer: Subject<any> = new Subject();
 
-    @ViewChild('filterInput', {static: false}) filterInputRef: ElementRef;
+    @ViewChild('filterInput', {static: true}) filterInputRef: ElementRef;
 
     ngOnInit(): void {
         this.sortedLabels = this.labels;

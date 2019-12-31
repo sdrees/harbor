@@ -35,6 +35,8 @@ Resource  Harbor-Pages/Project.robot
 Resource  Harbor-Pages/Project_Elements.robot
 Resource  Harbor-Pages/Project-Members.robot
 Resource  Harbor-Pages/Project-Members_Elements.robot
+Resource  Harbor-Pages/Project-Webhooks.robot
+Resource  Harbor-Pages/Project-Webhooks_Elements.robot
 Resource  Harbor-Pages/Project-Repository.robot
 Resource  Harbor-Pages/Project-Repository_Elements.robot
 Resource  Harbor-Pages/Project-Config.robot
@@ -43,6 +45,10 @@ Resource  Harbor-Pages/Project-Helmcharts.robot
 Resource  Harbor-Pages/Project-Helmcharts_Elements.robot
 Resource  Harbor-Pages/Project-Retag.robot
 Resource  Harbor-Pages/Project-Retag_Elements.robot
+Resource  Harbor-Pages/Project-Tag-Retention.robot
+Resource  Harbor-Pages/Project-Tag-Retention_Elements.robot
+Resource  Harbor-Pages/Project_Robot_Account.robot
+Resource  Harbor-Pages/Project_Robot_Account_Elements.robot
 Resource  Harbor-Pages/Replication.robot
 Resource  Harbor-Pages/Replication_Elements.robot
 Resource  Harbor-Pages/UserProfile.robot
@@ -62,7 +68,6 @@ Resource  Harbor-Pages/OIDC_Auth_Elements.robot
 Resource  Harbor-Pages/Verify.robot
 Resource  Docker-Util.robot
 Resource  Helm-Util.robot
-Resource  Admiral-Util.robot
 Resource  OVA-Util.robot
 Resource  Cert-Util.robot
 Resource  SeleniumUtil.robot
@@ -94,6 +99,11 @@ Retry Wait Element Not Visible
     [Arguments]  ${element_xpath}
     @{param}  Create List  ${element_xpath}
     Retry Action Keyword  Wait Until Element Is Not Visible  @{param}
+
+Retry Wait Element Should Be Disabled
+    [Arguments]  ${element_xpath}
+    @{param}  Create List  ${element_xpath}
+    Retry Action Keyword  Element Should Be Disabled  @{param}
 
 Retry Element Click
     [Arguments]  ${element_xpath}
@@ -146,31 +156,33 @@ Retry Wait Until Page Not Contains Element
     Retry Action Keyword  Wait Until Page Does Not Contain Element  @{param}
 
 Retry Select Object
-    [Arguments]    ${obj_name}
-    @{param}    Create List    ${obj_name}
-    Retry Action Keyword    Select Object    @{param}
+    [Arguments]  ${obj_name}
+    @{param}  Create List  ${obj_name}
+    Retry Action Keyword  Select Object  @{param}
 
 Retry Textfield Value Should Be
-    [Arguments]    ${element}    ${text}
-    @{param}    Create List    ${element}    ${text}
-    Retry Action Keyword    Wait And Textfield Value Should Be    @{param}
+    [Arguments]  ${element}  ${text}
+    @{param}  Create List  ${element}  ${text}
+    Retry Action Keyword  Wait And Textfield Value Should Be  @{param}
 
 Retry List Selection Should Be
-    [Arguments]    ${element}    ${text}
-    @{param}    Create List    ${element}    ${text}
-    Retry Action Keyword    Wait And List Selection Should Be    @{param}
+    [Arguments]  ${element}  ${text}
+    @{param}  Create List  ${element}  ${text}
+    Retry Action Keyword  Wait And List Selection Should Be  @{param}
+
 Link Click
     [Arguments]  ${element_xpath}
     Click Link  ${element_xpath}
+
 Wait And List Selection Should Be
-    [Arguments]    ${element}    ${text}
-    Wait Until Element Is Visible And Enabled    ${element}
-    List Selection Should Be    ${element}    ${text}
+    [Arguments]  ${element}  ${text}
+    Wait Until Element Is Visible And Enabled  ${element}
+    List Selection Should Be  ${element}  ${text}
 
 Wait And Textfield Value Should Be
-    [Arguments]    ${element}    ${text}
-    Wait Until Element Is Visible And Enabled    ${element}
-    Textfield Value Should Be    ${element}    ${text}
+    [Arguments]  ${element}  ${text}
+    Wait Until Element Is Visible And Enabled  ${element}
+    Textfield Value Should Be  ${element}  ${text}
 
 Element Click
     [Arguments]  ${element_xpath}
@@ -189,22 +201,10 @@ Text Input
     Input Text  ${element_xpath}  ${text}
 
 Clear Field Of Characters
-    [Arguments]    ${field}    ${character count}
-    [Documentation]    This keyword pushes the delete key (ascii: \8) a specified number of times in a specified field.
-    : FOR    ${index}    IN RANGE    ${character count}
-    \    Press Key    ${field}    \\8
-
-Wait Unitl Vul Data Ready
-    [Arguments]  ${url}  ${timeout}  ${interval}
-    ${n}=  Evaluate  ${timeout}/${interval}
-    :FOR  ${i}  IN RANGE  ${n}
-    \    Log  Checking the vul data: ${i} ...  console=True
-    \    ${rc}  ${output}=  Run And Return Rc And Output  curl -k ${url}/api/systeminfo
-    \    Should Be Equal As Integers  ${rc}  0
-    \    ${contains}=  Run Keyword And Return Status  Should Contain  ${output}  overall_last_update
-    \    Exit For Loop If  ${contains}
-    \    Sleep  ${interval}
-    Run Keyword If  ${i+1}==${n}  Fail  The vul data is not ready
+    [Arguments]  ${field}  ${character count}
+    [Documentation]  This keyword pushes the delete key (ascii: \8) a specified number of times in a specified field.
+    : FOR  ${index}  IN RANGE  ${character count}
+    \    Press Keys  ${field}  \\8
 
 Wait Unitl Command Success
     [Arguments]  ${cmd}  ${times}=8
@@ -226,7 +226,7 @@ Command Should be Failed
 Retry Keyword When Error
     [Arguments]  ${keyword}  @{elements}
     :For  ${n}  IN RANGE  1  6
-    \    Log To Console  Trying ${keyword} ${n} times ...
+    \    Log To Console  Trying ${keyword} elements @{elements} ${n} times ...
     \    ${out}  Run Keyword And Ignore Error  ${keyword}  @{elements}
     \    Log To Console  Return value is ${out[0]}
     \    Exit For Loop If  '${out[0]}'=='PASS'
@@ -234,9 +234,21 @@ Retry Keyword When Error
     Run Keyword If  '${out[0]}'=='FAIL'  Capture Page Screenshot
     Should Be Equal As Strings  '${out[0]}'  'PASS'
 
+Retry Keyword When Return Value Mismatch
+    [Arguments]  ${keyword}  ${expected_value}  ${count}  @{elements}
+    :For  ${n}  IN RANGE  1  ${count}
+    \    Log To Console  Trying ${keyword} ${n} times ...
+    \    ${out}  Run Keyword And Ignore Error  ${keyword}  @{elements}
+    \    Log To Console  Return value is ${out[1]}
+    \    ${status}=  Set Variable If  '${out[1]}'=='${expected_value}'  'PASS'  'FAIL'
+    \    Exit For Loop If  '${out[1]}'=='${expected_value}'
+    \    Sleep  2
+    Run Keyword If  ${status}=='FAIL'  Capture Page Screenshot
+    Should Be Equal As Strings  ${status}  'PASS'
+
 Retry Double Keywords When Error
-    [Arguments]  ${keyword1}  ${element1}  ${keyword2}  ${element2}
-    :For  ${n}  IN RANGE  1  3
+    [Arguments]  ${keyword1}  ${element1}  ${keyword2}  ${element2}  ${DoAssert}=${true}
+    :For  ${n}  IN RANGE  1  5
     \    Log To Console  Trying ${keyword1} and ${keyword2} ${n} times ...
     \    ${out1}  Run Keyword And Ignore Error  ${keyword1}  ${element1}
     \    Capture Page Screenshot
@@ -246,6 +258,7 @@ Retry Double Keywords When Error
     \    Log To Console  Return value is ${out1[0]} ${out2[0]}
     \    Exit For Loop If  '${out2[0]}'=='PASS'
     \    Sleep  1
+    Return From Keyword If  ${DoAssert} == ${false}  '${out2[0]}'
     Should Be Equal As Strings  '${out2[0]}'  'PASS'
 
 Run Curl And Return Json

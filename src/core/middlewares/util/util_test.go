@@ -32,7 +32,8 @@ import (
 	notarytest "github.com/goharbor/harbor/src/common/utils/notary/test"
 	testutils "github.com/goharbor/harbor/src/common/utils/test"
 	"github.com/goharbor/harbor/src/core/config"
-	"github.com/opencontainers/go-digest"
+	"github.com/goharbor/harbor/src/pkg/scan/vuln"
+	digest "github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -145,7 +146,7 @@ func TestMatchPushManifest(t *testing.T) {
 }
 
 func TestPMSPolicyChecker(t *testing.T) {
-	var defaultConfigAdmiral = map[string]interface{}{
+	var defaultConfig = map[string]interface{}{
 		common.ExtEndpoint:        "https://" + endpoint,
 		common.WithNotary:         true,
 		common.TokenExpiration:    30,
@@ -157,11 +158,9 @@ func TestPMSPolicyChecker(t *testing.T) {
 		common.PostGreSQLDatabase: "registry",
 	}
 
-	if err := config.Init(); err != nil {
-		panic(err)
-	}
+	config.Init()
 
-	config.Upload(defaultConfigAdmiral)
+	config.Upload(defaultConfig)
 
 	name := "project_for_test_get_sev_low"
 	id, err := config.GlobalProjectMgr.Create(&models.Project{
@@ -170,7 +169,7 @@ func TestPMSPolicyChecker(t *testing.T) {
 		Metadata: map[string]string{
 			models.ProMetaEnableContentTrust:   "true",
 			models.ProMetaPreventVul:           "true",
-			models.ProMetaSeverity:             "low",
+			models.ProMetaSeverity:             "low", // validateProjectMetadata function make the severity to lowercase
 			models.ProMetaReuseSysCVEWhitelist: "false",
 		},
 	})
@@ -185,8 +184,11 @@ func TestPMSPolicyChecker(t *testing.T) {
 	assert.True(t, contentTrustFlag)
 	projectVulnerableEnabled, projectVulnerableSeverity, wl := GetPolicyChecker().VulnerablePolicy("project_for_test_get_sev_low")
 	assert.True(t, projectVulnerableEnabled)
-	assert.Equal(t, projectVulnerableSeverity, models.SevLow)
+	assert.Equal(t, projectVulnerableSeverity, vuln.Low)
 	assert.Empty(t, wl.Items)
+
+	contentTrustFlag = GetPolicyChecker().ContentTrustEnabled("non_exist_project")
+	assert.False(t, contentTrustFlag)
 }
 
 func TestCopyResp(t *testing.T) {

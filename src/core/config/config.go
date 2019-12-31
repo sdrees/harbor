@@ -18,13 +18,7 @@
 package config
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"strings"
 
@@ -34,15 +28,15 @@ import (
 	"github.com/goharbor/harbor/src/common/secret"
 	"github.com/goharbor/harbor/src/common/utils/log"
 	"github.com/goharbor/harbor/src/core/promgr"
-	"github.com/goharbor/harbor/src/core/promgr/pmsdriver"
-	"github.com/goharbor/harbor/src/core/promgr/pmsdriver/admiral"
 	"github.com/goharbor/harbor/src/core/promgr/pmsdriver/local"
 )
 
 const (
 	defaultKeyPath                     = "/etc/core/key"
-	defaultTokenFilePath               = "/etc/core/token/tokens.properties"
 	defaultRegistryTokenPrivateKeyPath = "/etc/core/private_key.pem"
+
+	// SessionCookieName is the name of the cookie for session ID
+	SessionCookieName = "sid"
 )
 
 var (
@@ -51,18 +45,13 @@ var (
 	// GlobalProjectMgr is initialized based on the deploy mode
 	GlobalProjectMgr promgr.ProjectManager
 	keyProvider      comcfg.KeyProvider
-	// AdmiralClient is initialized only under integration deploy mode
-	// and can be passed to project manager as a parameter
-	AdmiralClient *http.Client
-	// TokenReader is used in integration mode to read token
-	TokenReader admiral.TokenReader
 	// defined as a var for testing.
 	defaultCACertPath = "/etc/core/ca/ca.crt"
 	cfgMgr            *comcfg.CfgManager
 )
 
 // Init configurations
-func Init() error {
+func Init() {
 	// init key provider
 	initKeyProvider()
 
@@ -71,13 +60,9 @@ func Init() error {
 	log.Info("init secret store")
 	// init secret store
 	initSecretStore()
-	log.Info("init project manager based on deploy mode")
-	// init project manager based on deploy mode
-	if err := initProjectManager(); err != nil {
-		log.Errorf("Failed to initialise project manager, error: %v", err)
-		return err
-	}
-	return nil
+	log.Info("init project manager")
+	// init project manager
+	initProjectManager()
 }
 
 // InitWithSettings init config with predefined configs, and optionally overwrite the keyprovider
@@ -106,46 +91,9 @@ func initSecretStore() {
 	SecretStore = secret.NewStore(m)
 }
 
-func initProjectManager() error {
-	var driver pmsdriver.PMSDriver
-	if WithAdmiral() {
-		log.Debugf("Initialising Admiral client with certificate: %s", defaultCACertPath)
-		content, err := ioutil.ReadFile(defaultCACertPath)
-		if err != nil {
-			return err
-		}
-		pool := x509.NewCertPool()
-		if ok := pool.AppendCertsFromPEM(content); !ok {
-			return fmt.Errorf("failed to append cert content into cert worker")
-		}
-		AdmiralClient = &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				TLSClientConfig: &tls.Config{
-					RootCAs: pool,
-				},
-			},
-		}
-
-		// integration with admiral
-		log.Info("initializing the project manager based on PMS...")
-		path := os.Getenv("SERVICE_TOKEN_FILE_PATH")
-		if len(path) == 0 {
-			path = defaultTokenFilePath
-		}
-		log.Infof("service token file path: %s", path)
-		TokenReader = &admiral.FileTokenReader{
-			Path: path,
-		}
-		driver = admiral.NewDriver(AdmiralClient, AdmiralEndpoint(), TokenReader)
-	} else {
-		// standalone
-		log.Info("initializing the project manager based on local database...")
-		driver = local.NewDriver()
-	}
-	GlobalProjectMgr = promgr.NewDefaultProjectManager(driver, true)
-	return nil
-
+func initProjectManager() {
+	log.Info("initializing the project manager based on local database...")
+	GlobalProjectMgr = promgr.NewDefaultProjectManager(local.NewDriver(), true)
 }
 
 // GetCfgManager return the current config manager
@@ -251,7 +199,7 @@ func ExtURL() (string, error) {
 		log.Errorf("failed to load config, error %v", err)
 	}
 	l := strings.Split(endpoint, "://")
-	if len(l) > 0 {
+	if len(l) > 1 {
 		return l[1], nil
 	}
 	return endpoint, nil
@@ -386,28 +334,9 @@ func ClairDB() (*models.PostGreSQL, error) {
 	return clairDB, nil
 }
 
-// AdmiralEndpoint returns the URL of admiral, if Harbor is not deployed with admiral it should return an empty string.
-func AdmiralEndpoint() string {
-	if cfgMgr.Get(common.AdmiralEndpoint).GetString() == "NA" {
-		return ""
-	}
-	return cfgMgr.Get(common.AdmiralEndpoint).GetString()
-}
-
-// ScanAllPolicy returns the policy which controls the scan all.
-func ScanAllPolicy() models.ScanAllPolicy {
-	var res models.ScanAllPolicy
-	log.Infof("Scan all policy %v", cfgMgr.Get(common.ScanAllPolicy).GetString())
-	if err := json.Unmarshal([]byte(cfgMgr.Get(common.ScanAllPolicy).GetString()), &res); err != nil {
-		log.Errorf("Failed to unmarshal the value in configuration for Scan All policy, error: %v, returning the default policy", err)
-		return models.DefaultScanAllPolicy
-	}
-	return res
-}
-
-// WithAdmiral returns a bool to indicate if Harbor's deployed with admiral.
-func WithAdmiral() bool {
-	return len(AdmiralEndpoint()) > 0
+// ClairAdapterEndpoint returns the endpoint of clair adapter instance, by default it's the one deployed within Harbor.
+func ClairAdapterEndpoint() string {
+	return cfgMgr.Get(common.ClairAdapterURL).GetString()
 }
 
 // UAASettings returns the UAASettings to access UAA service.
@@ -468,16 +397,6 @@ func GetRegistryCtlURL() string {
 	return url
 }
 
-// GetClairHealthCheckServerURL returns the URL of
-// the health check server of Clair
-func GetClairHealthCheckServerURL() string {
-	url := os.Getenv("CLAIR_HEALTH_CHECK_SERVER_URL")
-	if len(url) == 0 {
-		return common.DefaultClairHealthCheckServerURL
-	}
-	return url
-}
-
 // HTTPAuthProxySetting returns the setting of HTTP Auth proxy.  the settings are only meaningful when the auth_mode is
 // set to http_auth
 func HTTPAuthProxySetting() (*models.HTTPAuthProxy, error) {
@@ -489,8 +408,8 @@ func HTTPAuthProxySetting() (*models.HTTPAuthProxy, error) {
 		TokenReviewEndpoint: cfgMgr.Get(common.HTTPAuthProxyTokenReviewEndpoint).GetString(),
 		VerifyCert:          cfgMgr.Get(common.HTTPAuthProxyVerifyCert).GetBool(),
 		SkipSearch:          cfgMgr.Get(common.HTTPAuthProxySkipSearch).GetBool(),
+		ServerCertificate:   cfgMgr.Get(common.HTTPAuthProxyServerCertificate).GetString(),
 	}, nil
-
 }
 
 // OIDCSetting returns the setting of OIDC provider, currently there's only one OIDC provider allowed for Harbor and it's

@@ -11,17 +11,12 @@
 
 |![notification](docs/img/bell-outline-badged.svg)Community Meeting|
 |------------------|
-|The Harbor Project holds bi-weekly community calls, to join them and watch previous meeting notes and recordings, please see [meeting schedule](https://github.com/goharbor/community/blob/master/MEETING_SCHEDULE.md).|
- 
-Welcome to join below Harbor community events and meet with project maintainers and users:
+|The Harbor Project holds bi-weekly community calls in two different timezones. To join the community calls or to watch previous meeting notes and recordings, please visit the [meeting schedule](https://github.com/goharbor/community/blob/master/MEETING_SCHEDULE.md).|
 
-**May 20-24, 2019**, [KubeCon EU, Barcelona](https://events.linuxfoundation.org/events/kubecon-cloudnativecon-europe-2019/): Harbor Community Reception, Intro and Deep-dive sessions.
-
-**June 24-26, 2019**, [KubeCon Shanghai](https://www.lfasiallc.com/events/kubecon-cloudnativecon-china-2019/): Harbor community meetup, Harbor session. 
 </br> </br>
 
 **Note**: The `master` branch may be in an *unstable or even broken state* during development.
-Please use [releases](https://github.com/vmware/harbor/releases) instead of the `master` branch in order to get stable binaries.
+Please use [releases](https://github.com/vmware/harbor/releases) instead of the `master` branch in order to get a stable set of binaries.
 
 <img alt="Harbor" src="docs/img/harbor_logo.png">
 
@@ -44,6 +39,19 @@ Harbor is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CN
 * **Auditing**: All the operations to the repositories are tracked.
 * **RESTful API**: RESTful APIs for most administrative operations, easy to integrate with external systems. An embedded Swagger UI is available for exploring and testing the API.
 * **Easy deployment**: Provide both an online and offline installer. In addition, a Helm Chart can be used to deploy Harbor on Kubernetes.
+
+## API
+
+* [Harbor RESTful API](https://editor.swagger.io/?url=https://raw.githubusercontent.com/goharbor/harbor/master/api/harbor/swagger.yaml): The APIs for most administrative operations of Harbor and can be used to perform integrations with Harbor programmatically.
+  - Spec validation status: <img src="http://validator.swagger.io/validator?url=https://raw.githubusercontent.com/goharbor/harbor/master/api/harbor/swagger.yaml">
+
+## Compatibility
+
+The [compatibility list](./docs/harbor_compatibility_list.md) document provides compatibility information for the Harbor components.
+
+- [Replication adapters](./docs/harbor_compatibility_list.md#Replication-Adapters)
+- [OIDC adapters](./docs/harbor_compatibility_list.md#OIDC-Adapters)
+- [Scanner adapters](./docs/harbor_compatibility_list.md#Scanner-Adapters)
 
 ## Install & Run
 
@@ -80,6 +88,21 @@ Tools layered on top of Harbor and contributed by community.
 ## Partners and Users
 
 For a list of users, please refer to [ADOPTERS.md](ADOPTERS.md).
+
+## Security
+
+### Security Audit
+
+A third party security audit was performed by Cure53 in October of 2019. You can see the full report [here](docs/security/Harbor_Security_Audit_Oct2019.pdf).
+
+### Reporting security vulnerabilities
+
+If you've found a security related issue, a vulnerability, or a potential vulnerability in Harbor please let the [Harbor Security Team](mailto:cncf-harbor-security@lists.cncf.io) know with the details of the vulnerability. We'll send a confirmation
+email to acknowledge your report, and we'll send an additional email when we've identified the issue
+positively or negatively.
+
+For further details please see our complete [security release process](SECURITY.md).
+
 
 ## License
 
