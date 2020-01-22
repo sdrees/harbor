@@ -15,15 +15,19 @@
 package registry
 
 import (
-	"github.com/goharbor/harbor/src/pkg/project"
-	pkg_repo "github.com/goharbor/harbor/src/pkg/repository"
-	pkg_tag "github.com/goharbor/harbor/src/pkg/tag"
-	"github.com/goharbor/harbor/src/server/middleware"
-	"github.com/goharbor/harbor/src/server/registry/blob"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/goharbor/harbor/src/pkg/project"
+	pkg_repo "github.com/goharbor/harbor/src/pkg/repository"
+	pkg_tag "github.com/goharbor/harbor/src/pkg/tag"
+	"github.com/goharbor/harbor/src/server/middleware"
+	"github.com/goharbor/harbor/src/server/middleware/immutable"
+	"github.com/goharbor/harbor/src/server/middleware/manifestinfo"
+	"github.com/goharbor/harbor/src/server/middleware/readonly"
+	"github.com/goharbor/harbor/src/server/middleware/regtoken"
+	"github.com/goharbor/harbor/src/server/registry/blob"
 	"github.com/goharbor/harbor/src/server/registry/catalog"
 	"github.com/goharbor/harbor/src/server/registry/manifest"
 	"github.com/goharbor/harbor/src/server/registry/tag"
@@ -49,20 +53,19 @@ func New(url *url.URL) http.Handler {
 	// handle manifest
 	// TODO maybe we should split it into several sub routers based on the method
 	manifestRouter := rootRouter.Path("/v2/{name:.*}/manifests/{reference}").Subrouter()
-	manifestRouter.NewRoute().Methods(http.MethodGet).Handler(manifest.NewHandler(project.Mgr, proxy))
+	manifestRouter.NewRoute().Methods(http.MethodGet).Handler(middleware.WithMiddlewares(manifest.NewHandler(project.Mgr, proxy), manifestinfo.Middleware(), regtoken.Middleware()))
 	manifestRouter.NewRoute().Methods(http.MethodHead).Handler(manifest.NewHandler(project.Mgr, proxy))
-	manifestRouter.NewRoute().Methods(http.MethodPut).Handler(middleware.WithMiddlewares(manifest.NewHandler(project.Mgr, proxy), middleware.ReadOnly()))
-	manifestRouter.NewRoute().Methods(http.MethodDelete).Handler(middleware.WithMiddlewares(manifest.NewHandler(project.Mgr, proxy), middleware.ReadOnly()))
+	manifestRouter.NewRoute().Methods(http.MethodDelete).Handler(middleware.WithMiddlewares(manifest.NewHandler(project.Mgr, proxy), readonly.Middleware(), manifestinfo.Middleware(), immutable.MiddlewareDelete()))
 
 	// handle blob
 	// as we need to apply middleware to the blob requests, so create a sub router to handle the blob APIs
 	blobRouter := rootRouter.PathPrefix("/v2/{name:.*}/blobs/").Subrouter()
 	blobRouter.NewRoute().Methods(http.MethodGet).Handler(blob.NewHandler(proxy))
 	blobRouter.NewRoute().Methods(http.MethodHead).Handler(blob.NewHandler(proxy))
-	blobRouter.NewRoute().Methods(http.MethodPost).Handler(middleware.WithMiddlewares(blob.NewHandler(proxy), middleware.ReadOnly()))
-	blobRouter.NewRoute().Methods(http.MethodPut).Handler(middleware.WithMiddlewares(blob.NewHandler(proxy), middleware.ReadOnly()))
-	blobRouter.NewRoute().Methods(http.MethodPatch).Handler(middleware.WithMiddlewares(blob.NewHandler(proxy), middleware.ReadOnly()))
-	blobRouter.NewRoute().Methods(http.MethodDelete).Handler(middleware.WithMiddlewares(blob.NewHandler(proxy), middleware.ReadOnly()))
+	blobRouter.NewRoute().Methods(http.MethodPost).Handler(middleware.WithMiddlewares(blob.NewHandler(proxy), readonly.Middleware()))
+	blobRouter.NewRoute().Methods(http.MethodPut).Handler(middleware.WithMiddlewares(blob.NewHandler(proxy), readonly.Middleware()))
+	blobRouter.NewRoute().Methods(http.MethodPatch).Handler(middleware.WithMiddlewares(blob.NewHandler(proxy), readonly.Middleware()))
+	blobRouter.NewRoute().Methods(http.MethodDelete).Handler(middleware.WithMiddlewares(blob.NewHandler(proxy), readonly.Middleware()))
 
 	// all other APIs are proxy to the backend docker registry
 	rootRouter.PathPrefix("/").Handler(proxy)

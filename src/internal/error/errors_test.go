@@ -12,21 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filter
+package error
 
 import (
-	"github.com/astaxie/beego/context"
-	o "github.com/astaxie/beego/orm"
-	"github.com/goharbor/harbor/src/internal/orm"
+	"errors"
+	"testing"
 )
 
-// OrmFilter set orm.Ormer instance to the context of the http.Request
-func OrmFilter(ctx *context.Context) {
-	if ctx == nil || ctx.Request == nil {
-		return
+func TestErrCode(t *testing.T) {
+	type args struct {
+		err error
 	}
-	// This is a temp workaround for beego bug: https://github.com/goharbor/harbor/issues/10446
-	// After we upgrading beego to the latest version and moving the filter to middleware,
-	// this workaround can be removed
-	*(ctx.Request) = *(ctx.Request.WithContext(orm.NewContext(ctx.Request.Context(), o.NewOrm())))
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{"nil", args{nil}, ""},
+		{"general err", args{errors.New("general err")}, GeneralCode},
+		{"code in err", args{&Error{Code: "code in err"}}, "code in err"},
+		{"code in cause", args{&Error{Cause: &Error{Code: "code in cause"}}}, "code in cause"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ErrCode(tt.args.err); got != tt.want {
+				t.Errorf("ErrCode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

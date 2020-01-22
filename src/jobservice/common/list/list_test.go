@@ -12,29 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package list
 
 import (
-	"net/http"
+	"strings"
+	"testing"
 
-	"github.com/google/uuid"
+	"github.com/stretchr/testify/suite"
 )
 
-// HeaderXRequestID X-Request-ID header
-const HeaderXRequestID = "X-Request-ID"
+type ListSuite struct {
+	suite.Suite
 
-// RequestID middleware which add X-Request-ID header in the http request when not exist
-func RequestID() func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			rid := r.Header.Get(HeaderXRequestID)
-			if rid == "" {
-				rid = uuid.New().String()
-				r.Header.Set(HeaderXRequestID, rid)
+	l *SyncList
+}
+
+func TestListSuite(t *testing.T) {
+	suite.Run(t, &ListSuite{})
+}
+
+func (suite *ListSuite) SetupSuite() {
+	suite.l = New()
+
+	suite.l.Push("a0")
+	suite.l.Push("a1")
+	suite.l.Push("b0")
+	suite.l.Push("a2")
+
+	suite.Equal(4, suite.l.l.Len())
+}
+
+func (suite *ListSuite) TestIterate() {
+	suite.l.Iterate(func(ele interface{}) bool {
+		if s, ok := ele.(string); ok {
+			if strings.HasPrefix(s, "b") {
+				return true
 			}
+		}
 
-			w.Header().Set(HeaderXRequestID, rid)
-			next.ServeHTTP(w, r)
-		})
-	}
+		return false
+	})
+
+	suite.Equal(3, suite.l.l.Len())
 }
