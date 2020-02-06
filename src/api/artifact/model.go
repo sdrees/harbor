@@ -47,8 +47,9 @@ func (a *Artifact) ToSwagger() *models.Artifact {
 	}
 	for _, reference := range a.References {
 		ref := &models.Reference{
-			ChildID:  reference.ChildID,
-			ParentID: reference.ParentID,
+			ChildID:     reference.ChildID,
+			ChildDigest: reference.ChildDigest,
+			ParentID:    reference.ParentID,
 		}
 		if reference.Platform != nil {
 			ref.Platform = &models.Platform{
@@ -69,6 +70,7 @@ func (a *Artifact) ToSwagger() *models.Artifact {
 			PullTime:     strfmt.DateTime(tag.PullTime),
 			PushTime:     strfmt.DateTime(tag.PushTime),
 			RepositoryID: tag.RepositoryID,
+			Immutable:    tag.Immutable,
 		})
 	}
 	for resource, links := range a.SubResourceLinks {
@@ -88,7 +90,8 @@ func (a *Artifact) ToSwagger() *models.Artifact {
 // Tag is the overall view of tag
 type Tag struct {
 	tag.Tag
-	// TODO add other attrs: signature, label, immutable status, etc
+	Immutable bool
+	// TODO add other attrs: signature, label, etc
 }
 
 // Resource defines the specific resource of different artifacts: build history for image, values.yaml for chart, etc
