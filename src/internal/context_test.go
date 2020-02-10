@@ -12,18 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package error
+package internal
 
 import (
-	"github.com/goharbor/harbor/src/common/utils/log"
-	serror "github.com/goharbor/harbor/src/server/error"
-	"net/http"
+	"context"
+	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
-// Handle generates the HTTP status code and error payload and writes them to the response
-func Handle(w http.ResponseWriter, req *http.Request, err error) {
-	log.Errorf("failed to handle the request %s %s: %v", req.Method, req.URL, err)
-	statusCode, payload := serror.APIError(err)
-	w.WriteHeader(statusCode)
-	w.Write([]byte(payload))
+func TestSetAPIVersion(t *testing.T) {
+	ctx := SetAPIVersion(context.Background(), "1.0")
+	assert.NotNil(t, ctx)
+}
+
+func TestGetAPIVersion(t *testing.T) {
+	// nil context
+	version := GetAPIVersion(nil)
+	assert.Empty(t, version)
+
+	// no version set in context
+	version = GetAPIVersion(context.Background())
+	assert.Empty(t, version)
+
+	// version set in context
+	ctx := SetAPIVersion(context.Background(), "1.0")
+	version = GetAPIVersion(ctx)
+	assert.Equal(t, "1.0", version)
 }

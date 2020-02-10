@@ -34,6 +34,11 @@ paths:
           description: Query the artifacts by type. Valid values can be "IMAGE", "CHART", etc.
           type: string
           required: false
+        - name: tags
+          in: query
+          description: Without the "tags" query string, both tagged and untagged artifacts will be returned. Specify it as "*" to return only tagged artifacts; specify it as "nil" to return only untagged artifacts.
+          type: string
+          required: false
         - name: with_tag
           in: query
           description: Specify whether the tags are inclued inside the returning artifacts
@@ -102,6 +107,8 @@ paths:
         - $ref: '#/parameters/projectName'
         - $ref: '#/parameters/repositoryName'
         - $ref: '#/parameters/reference'
+        - $ref: '#/parameters/page'
+        - $ref: '#/parameters/pageSize'
         - name: with_tag
           in: query
           description: Specify whether the tags are inclued inside the returning artifacts
@@ -249,6 +256,39 @@ paths:
           $ref: '#/responses/404'
         '500':
           $ref: '#/responses/500'
+  /projects/{project_name}/repositories/{repository_name}/artifacts/{reference}/additions/{addition}:
+    get:
+      summary: Get the addition of the specific artifact
+      description: Get the addition of the artifact specified by the reference under the project and repository.
+      tags:
+        - artifact
+      operationId: getAddition
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - $ref: '#/parameters/projectName'
+        - $ref: '#/parameters/repositoryName'
+        - $ref: '#/parameters/reference'
+        - name: addition
+          in: path
+          description: The addition name, "build_history" for images; "values.yaml", "readme", "dependencies" for charts
+          type: string
+          enum: [build_history, values.yaml, readme, dependencies]
+          required: true
+      responses:
+        '200':
+          description: Success
+          schema:
+            type: string
+        '400':
+          $ref: '#/responses/400'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '404':
+          $ref: '#/responses/404'
+        '500':
+          $ref: '#/responses/500'
 parameters:
   requestId:
     name: X-Request-Id
@@ -317,7 +357,7 @@ responses:
         description: The ID of the corresponding request for the response
         type: string
     schema:
-      $ref: '#/definitions/Error'
+      $ref: '#/definitions/Errors'
   '401':
     description: Unauthorized
     headers:
@@ -325,7 +365,7 @@ responses:
         description: The ID of the corresponding request for the response
         type: string
     schema:
-      $ref: '#/definitions/Error'
+      $ref: '#/definitions/Errors'
   '403':
     description: Forbidden
     headers:
@@ -333,7 +373,7 @@ responses:
         description: The ID of the corresponding request for the response
         type: string
     schema:
-      $ref: '#/definitions/Error'
+      $ref: '#/definitions/Errors'
   '404':
     description: Not found
     headers:
@@ -341,7 +381,7 @@ responses:
         description: The ID of the corresponding request for the response
         type: string
     schema:
-      $ref: '#/definitions/Error'
+      $ref: '#/definitions/Errors'
   '409':
     description: Conflict
     headers:
@@ -349,7 +389,7 @@ responses:
         description: The ID of the corresponding request for the response
         type: string
     schema:
-      $ref: '#/definitions/Error'
+      $ref: '#/definitions/Errors'
   '500':
     description: Internal server error
     headers:
@@ -357,8 +397,13 @@ responses:
         description: The ID of the corresponding request for the response
         type: string
     schema:
-      $ref: '#/definitions/Error'
+      $ref: '#/definitions/Errors'
 definitions:
+  Errors:
+    description: The error array that describe the errors got during the handling of request
+    type: array
+    items:
+      $ref: '#/definitions/Error'
   Error:
     description: a model for all the error response coming from harbor
     type: object
@@ -369,11 +414,6 @@ definitions:
       message:
         type: string
         description: The error message
-    x-go-type:
-      import:
-        package: "github.com/goharbor/harbor/src/internal/error"
-        alias: "ierrors"
-      type: "Error"
   Artifact:
     type: object
     properties:
@@ -425,8 +465,8 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Tag'
-      sub_resource_links:
-        $ref: '#/definitions/SubResourceLinks'
+      addition_links:
+        $ref: '#/definitions/AdditionLinks'
   Tag:
     type: object
     properties:
@@ -455,6 +495,7 @@ definitions:
         description: The latest pull time of the tag
       immutable:
         type: boolean
+        x-omitempty: false
         description: The immutable status of the tag
   ExtraAttrs:
     type: object
@@ -464,20 +505,19 @@ definitions:
     type: object
     additionalProperties:
       type: string
-  SubResourceLinks:
+  AdditionLinks:
     type: object
     additionalProperties:
-      type: array
-      items:
-        $ref: '#/definitions/ResourceLink'
-  ResourceLink:
+      $ref: '#/definitions/AdditionLink'
+  AdditionLink:
     type: object
     properties:
       href:
         type: string
-        description: The link of the resource
+        description: The link of the addition
       absolute:
         type: boolean
+        x-omitempty: false
         description: Determine whether the link is an absolute URL or not
   Reference:
     type: object
@@ -515,3 +555,4 @@ definitions:
       variant:
         type: string
         description: The variant of the CPU
+
