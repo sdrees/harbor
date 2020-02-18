@@ -43,6 +43,8 @@ type DAO interface {
 	CreateReference(ctx context.Context, reference *ArtifactReference) (id int64, err error)
 	// ListReferences lists the artifact references according to the query
 	ListReferences(ctx context.Context, query *q.Query) (references []*ArtifactReference, err error)
+	// DeleteReference specified by ID
+	DeleteReference(ctx context.Context, id int64) (err error)
 	// DeleteReferences deletes the references referenced by the artifact specified by parent ID
 	DeleteReferences(ctx context.Context, parentID int64) (err error)
 }
@@ -191,12 +193,14 @@ func (d *dao) CreateReference(ctx context.Context, reference *ArtifactReference)
 		return 0, err
 	}
 	id, err := ormer.Insert(reference)
-	if e := orm.AsConflictError(err, "reference already exists, parent artifact ID: %d, child artifact ID: %d",
-		reference.ParentID, reference.ChildID); e != nil {
-		err = e
-	} else if e := orm.AsForeignKeyError(err, "the reference tries to reference a non existing artifact, parent artifact ID: %d, child artifact ID: %d",
-		reference.ParentID, reference.ChildID); e != nil {
-		err = e
+	if err != nil {
+		if e := orm.AsConflictError(err, "reference already exists, parent artifact ID: %d, child artifact ID: %d",
+			reference.ParentID, reference.ChildID); e != nil {
+			err = e
+		} else if e := orm.AsForeignKeyError(err, "the reference tries to reference a non existing artifact, parent artifact ID: %d, child artifact ID: %d",
+			reference.ParentID, reference.ChildID); e != nil {
+			err = e
+		}
 	}
 	return id, err
 }
@@ -211,6 +215,22 @@ func (d *dao) ListReferences(ctx context.Context, query *q.Query) ([]*ArtifactRe
 	}
 	return references, nil
 }
+
+func (d *dao) DeleteReference(ctx context.Context, id int64) error {
+	ormer, err := orm.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+	n, err := ormer.Delete(&ArtifactReference{ID: id})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ierror.NotFoundError(nil).WithMessage("artifact reference %d not found", id)
+	}
+	return nil
+}
+
 func (d *dao) DeleteReferences(ctx context.Context, parentID int64) error {
 	// make sure the parent artifact exist
 	_, err := d.Get(ctx, parentID)

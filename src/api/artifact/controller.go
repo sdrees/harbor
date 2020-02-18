@@ -19,13 +19,14 @@ import (
 	"fmt"
 	"github.com/goharbor/harbor/src/api/artifact/abstractor"
 	"github.com/goharbor/harbor/src/api/artifact/abstractor/resolver"
-	"github.com/goharbor/harbor/src/api/artifact/abstractor/resolver/image"
 	"github.com/goharbor/harbor/src/api/artifact/descriptor"
 	"github.com/goharbor/harbor/src/common/utils"
 	"github.com/goharbor/harbor/src/internal"
 	"github.com/goharbor/harbor/src/pkg/art"
 	"github.com/goharbor/harbor/src/pkg/immutabletag/match"
 	"github.com/goharbor/harbor/src/pkg/immutabletag/match/rule"
+	"github.com/goharbor/harbor/src/pkg/label"
+	"github.com/goharbor/harbor/src/pkg/signature"
 	"github.com/opencontainers/go-digest"
 	"strings"
 
@@ -77,10 +78,10 @@ type Controller interface {
 	// The addition is different according to the artifact type:
 	// build history for image; values.yaml, readme and dependencies for chart, etc
 	GetAddition(ctx context.Context, artifactID int64, additionType string) (addition *resolver.Addition, err error)
-	// TODO move this to GC controller?
-	// Prune removes the useless artifact records. The underlying registry data will
-	// be removed during garbage collection
-	// Prune(ctx context.Context, option *Option) error
+	// AddLabel to the specified artifact
+	AddLabel(ctx context.Context, artifactID int64, labelID int64) (err error)
+	// RemoveLabel from the specified artifact
+	RemoveLabel(ctx context.Context, artifactID int64, labelID int64) (err error)
 }
 
 // NewController creates an instance of the default artifact controller
@@ -89,6 +90,8 @@ func NewController() Controller {
 		repoMgr:      repository.Mgr,
 		artMgr:       artifact.Mgr,
 		tagMgr:       tag.Mgr,
+		sigMgr:       signature.GetManager(),
+		labelMgr:     label.Mgr,
 		abstractor:   abstractor.NewAbstractor(),
 		immutableMtr: rule.NewRuleMatcher(),
 	}
@@ -100,6 +103,8 @@ type controller struct {
 	repoMgr      repository.Manager
 	artMgr       artifact.Manager
 	tagMgr       tag.Manager
+	sigMgr       signature.Manager
+	labelMgr     label.Manager
 	abstractor   abstractor.Abstractor
 	immutableMtr match.ImmutableTagMatcher
 }
@@ -269,26 +274,76 @@ func (c *controller) getByTag(ctx context.Context, repository, tag string, optio
 }
 
 func (c *controller) Delete(ctx context.Context, id int64) error {
-	// delete all tags that attached to the artifact
-	_, tags, err := c.tagMgr.List(ctx, &q.Query{
+	return c.deleteDeeply(ctx, id, true)
+}
+
+// "isRoot" is used to specify whether the artifact is the root parent artifact
+// the error handling logic for the root parent artifact and others is different
+func (c *controller) deleteDeeply(ctx context.Context, id int64, isRoot bool) error {
+	art, err := c.Get(ctx, id, &Option{WithTag: true})
+	if err != nil {
+		// return nil if the nonexistent artifact isn't the root parent
+		if !isRoot && ierror.IsErr(err, ierror.NotFoundCode) {
+			return nil
+		}
+		return err
+	}
+	// the child artifact is referenced by some tags, skip
+	if !isRoot && len(art.Tags) > 0 {
+		return nil
+	}
+	parents, err := c.artMgr.ListReferences(ctx, &q.Query{
 		Keywords: map[string]interface{}{
-			"artifact_id": id,
+			"ChildID": id,
 		},
 	})
 	if err != nil {
 		return err
 	}
-	for _, tag := range tags {
-		if err = c.DeleteTag(ctx, tag.ID); err != nil {
+	if len(parents) > 0 {
+		// the root artifact is referenced by other artifacts
+		if isRoot {
+			return ierror.New(nil).WithCode(ierror.ViolateForeignKeyConstraintCode).
+				WithMessage("the deleting artifact is referenced by others")
+		}
+		// the child artifact is referenced by other artifacts, skip
+		return nil
+	}
+	// delete child artifacts if contains any
+	for _, reference := range art.References {
+		// delete reference
+		if err = c.artMgr.DeleteReference(ctx, reference.ID); err != nil &&
+			!ierror.IsErr(err, ierror.NotFoundCode) {
+			return err
+		}
+		if err = c.deleteDeeply(ctx, reference.ChildID, false); err != nil {
 			return err
 		}
 	}
 
-	if err := c.artMgr.Delete(ctx, id); err != nil {
+	// delete all tags that attached to the root artifact
+	if isRoot {
+		if err = c.tagMgr.DeleteOfArtifact(ctx, id); err != nil {
+			return err
+		}
+	}
+
+	// remove labels added to the artifact
+	if err := c.labelMgr.RemoveAllFrom(ctx, id); err != nil {
+		return err
+	}
+
+	// delete the artifact itself
+	if err = c.artMgr.Delete(ctx, art.ID); err != nil {
+		// the child artifact doesn't exist, skip
+		if !isRoot && ierror.IsErr(err, ierror.NotFoundCode) {
+			return nil
+		}
 		return err
 	}
 
 	// TODO fire delete artifact event
+
 	return nil
 }
 
@@ -311,7 +366,6 @@ func (c *controller) ListTags(ctx context.Context, query *q.Query, option *TagOp
 func (c *controller) DeleteTag(ctx context.Context, tagID int64) error {
 	// Immutable checking is covered in middleware
 	// TODO check signature
-	// TODO delete label
 	// TODO fire delete tag event
 	return c.tagMgr.Delete(ctx, tagID)
 }
@@ -337,14 +391,15 @@ func (c *controller) GetAddition(ctx context.Context, artifactID int64, addition
 	if err != nil {
 		return nil, err
 	}
-	switch addition {
-	case image.AdditionTypeVulnerabilities:
-		// get the vulnerabilities from scan service
-		// TODO implement
-		return &resolver.Addition{}, nil
-	default:
-		return c.abstractor.AbstractAddition(ctx, artifact, addition)
-	}
+	return c.abstractor.AbstractAddition(ctx, artifact, addition)
+}
+
+func (c *controller) AddLabel(ctx context.Context, artifactID int64, labelID int64) error {
+	return c.labelMgr.AddTo(ctx, labelID, artifactID)
+}
+
+func (c *controller) RemoveLabel(ctx context.Context, artifactID int64, labelID int64) error {
+	return c.labelMgr.RemoveFrom(ctx, labelID, artifactID)
 }
 
 // assemble several part into a single artifact
@@ -352,35 +407,35 @@ func (c *controller) assembleArtifact(ctx context.Context, art *artifact.Artifac
 	artifact := &Artifact{
 		Artifact: *art,
 	}
+	// populate addition links
+	c.populateAdditionLinks(ctx, artifact)
 	if option == nil {
 		return artifact
 	}
-	// populate tags
 	if option.WithTag {
-		_, tgs, err := c.tagMgr.List(ctx, &q.Query{
-			Keywords: map[string]interface{}{
-				"artifact_id": artifact.ID,
-			},
-		})
-		if err == nil {
-			// assemble tags
-			for _, tg := range tgs {
-				artifact.Tags = append(artifact.Tags, c.assembleTag(ctx, tg, option.TagOption))
-			}
-		} else {
-			log.Errorf("failed to list tag of artifact %d: %v", artifact.ID, err)
-		}
+		c.populateTags(ctx, artifact, option.TagOption)
 	}
 	if option.WithLabel {
-		// TODO populate label
-	}
-	if option.WithScanOverview {
-		// TODO populate scan overview
+		c.populateLabels(ctx, artifact)
 	}
 	// populate addition links
 	c.populateAdditionLinks(ctx, artifact)
-	// TODO populate signature on artifact or label level?
 	return artifact
+}
+
+func (c *controller) populateTags(ctx context.Context, art *Artifact, option *TagOption) {
+	_, tags, err := c.tagMgr.List(ctx, &q.Query{
+		Keywords: map[string]interface{}{
+			"artifact_id": art.ID,
+		},
+	})
+	if err != nil {
+		log.Errorf("failed to list tag of artifact %d: %v", art.ID, err)
+		return
+	}
+	for _, tag := range tags {
+		art.Tags = append(art.Tags, c.assembleTag(ctx, tag, option))
+	}
 }
 
 // assemble several part into a single tag
@@ -391,31 +446,62 @@ func (c *controller) assembleTag(ctx context.Context, tag *tm.Tag, option *TagOp
 	if option == nil {
 		return t
 	}
+	repo, err := c.repoMgr.Get(ctx, tag.RepositoryID)
+	if err != nil {
+		log.Errorf("Failed to get repo for tag: %s, error: %v", tag.Name, err)
+		return t
+	}
 	if option.WithImmutableStatus {
-		repo, err := c.repoMgr.Get(ctx, tag.RepositoryID)
-		if err != nil {
-			log.Error(err)
+		c.populateImmutableStatus(ctx, t)
+	}
+	if option.WithSignature {
+		if a, err := c.artMgr.Get(ctx, t.ArtifactID); err != nil {
+			log.Errorf("Failed to get artifact for tag: %s, error: %v, skip populating signature", t.Name, err)
 		} else {
-			t.Immutable = c.isImmutable(repo.ProjectID, repo.Name, tag.Name)
+			c.populateTagSignature(ctx, repo.Name, t, a.Digest, option)
 		}
 	}
-	// TODO populate signature on tag level?
 	return t
 }
 
-// check whether the tag is Immutable
-func (c *controller) isImmutable(projectID int64, repo string, tag string) bool {
-	_, repoName := utils.ParseRepository(repo)
-	matched, err := c.immutableMtr.Match(projectID, art.Candidate{
+func (c *controller) populateTagSignature(ctx context.Context, repo string, tag *Tag, digest string, option *TagOption) {
+	if option.SignatureChecker == nil {
+		chk, err := signature.GetManager().GetCheckerByRepo(ctx, repo)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		option.SignatureChecker = chk
+	}
+	tag.Signed = option.SignatureChecker.IsTagSigned(tag.Name, digest)
+}
+
+func (c *controller) populateLabels(ctx context.Context, art *Artifact) {
+	labels, err := c.labelMgr.ListByArtifact(ctx, art.ID)
+	if err != nil {
+		log.Errorf("failed to list labels of artifact %d: %v", art.ID, err)
+		return
+	}
+	art.Labels = labels
+}
+
+func (c *controller) populateImmutableStatus(ctx context.Context, tag *Tag) {
+	repo, err := c.repoMgr.Get(ctx, tag.RepositoryID)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	_, repoName := utils.ParseRepository(repo.Name)
+	matched, err := c.immutableMtr.Match(repo.ProjectID, art.Candidate{
 		Repository:  repoName,
-		Tag:         tag,
-		NamespaceID: projectID,
+		Tag:         tag.Name,
+		NamespaceID: repo.ProjectID,
 	})
 	if err != nil {
 		log.Error(err)
-		return false
+		return
 	}
-	return matched
+	tag.Immutable = matched
 }
 
 func (c *controller) populateAdditionLinks(ctx context.Context, artifact *Artifact) {
@@ -437,21 +523,11 @@ func (c *controller) populateAdditionLinks(ctx context.Context, artifact *Artifa
 	if artifact.AdditionLinks == nil {
 		artifact.AdditionLinks = make(map[string]*AdditionLink)
 	}
-	href := ""
 	for _, t := range types {
 		t = strings.ToLower(t)
-		switch t {
-		case image.AdditionTypeVulnerabilities:
-			// check whether the scan service is enabled and set the addition link
-			// TODO implement
-			href = fmt.Sprintf("/api/%s/projects/%s/repositories/%s/artifacts/%s/vulnerabilities",
-				version, pro, repo, artifact.Digest)
-		default:
-			href = fmt.Sprintf("/api/%s/projects/%s/repositories/%s/artifacts/%s/additions/%s",
-				version, pro, repo, artifact.Digest, t)
-		}
 		artifact.AdditionLinks[t] = &AdditionLink{
-			HREF:     href,
+			HREF: fmt.Sprintf("/api/%s/projects/%s/repositories/%s/artifacts/%s/additions/%s",
+				version, pro, repo, artifact.Digest, t),
 			Absolute: false,
 		}
 	}
