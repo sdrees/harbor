@@ -77,6 +77,7 @@ REGISTRYPROJECTNAME=goharbor
 DEVFLAG=true
 NOTARYFLAG=false
 CLAIRFLAG=false
+TRIVYFLAG=false
 HTTPPROXY=
 BUILDBIN=false
 MIGRATORFLAG=false
@@ -104,6 +105,8 @@ MIGRATORVERSION=$(VERSIONTAG)
 REDISVERSION=$(VERSIONTAG)
 NOTARYMIGRATEVERSION=v3.5.4
 CLAIRADAPTERVERSION=v1.0.1
+TRIVYVERSION=v0.4.3
+TRIVYADAPTERVERSION=v0.2.3
 
 # version of chartmuseum
 CHARTMUSEUMVERSION=v0.9.0
@@ -117,6 +120,8 @@ REGISTRY_VERSION: $(REGISTRYVERSION)
 NOTARY_VERSION: $(NOTARYVERSION)
 CLAIR_VERSION: $(CLAIRVERSION)
 CLAIR_ADAPTER_VERSION: $(CLAIRADAPTERVERSION)
+TRIVY_VERSION: $(TRIVYVERSION)
+TRIVY_ADAPTER_VERSION: $(TRIVYADAPTERVERSION)
 CHARTMUSEUM_VERSION: $(CHARTMUSEUMVERSION)
 endef
 
@@ -192,6 +197,9 @@ ifeq ($(NOTARYFLAG), true)
 endif
 ifeq ($(CLAIRFLAG), true)
 	PREPARECMD_PARA+= --with-clair
+endif
+ifeq ($(TRIVYFLAG), true)
+	PREPARECMD_PARA+= --with-trivy
 endif
 # append chartmuseum parameters if set
 ifeq ($(CHARTFLAG), true)
@@ -276,6 +284,9 @@ endif
 ifeq ($(CLAIRFLAG), true)
 	DOCKERSAVE_PARA+= goharbor/clair-photon:$(CLAIRVERSION)-$(VERSIONTAG) goharbor/clair-adapter-photon:$(CLAIRADAPTERVERSION)-$(VERSIONTAG)
 endif
+ifeq ($(TRIVYFLAG), true)
+	DOCKERSAVE_PARA+= goharbor/trivy-adapter-photon:$(TRIVYADAPTERVERSION)-$(VERSIONTAG)
+endif
 ifeq ($(MIGRATORFLAG), true)
 	DOCKERSAVE_PARA+= goharbor/harbor-migrator:$(MIGRATORVERSION)
 endif
@@ -348,14 +359,16 @@ prepare: update_prepare_version
 
 build:
 	make -f $(MAKEFILEPATH_PHOTON)/Makefile $(BUILDTARGET) -e DEVFLAG=$(DEVFLAG) -e GOBUILDIMAGE=$(GOBUILDIMAGE) \
-	 -e REGISTRYVERSION=$(REGISTRYVERSION) -e REGISTRY_SRC_TAG=$(REGISTRY_SRC_TAG) -e NGINXVERSION=$(NGINXVERSION) -e NOTARYVERSION=$(NOTARYVERSION) -e NOTARYMIGRATEVERSION=$(NOTARYMIGRATEVERSION) \
+	 -e REGISTRYVERSION=$(REGISTRYVERSION) -e REGISTRY_SRC_TAG=$(REGISTRY_SRC_TAG) -e NGINXVERSION=$(NGINXVERSION) \
+	 -e NOTARYVERSION=$(NOTARYVERSION) -e NOTARYMIGRATEVERSION=$(NOTARYMIGRATEVERSION) \
+	 -e TRIVYVERSION=$(TRIVYVERSION) -e TRIVYADAPTERVERSION=$(TRIVYADAPTERVERSION) \
 	 -e CLAIRVERSION=$(CLAIRVERSION) -e CLAIRADAPTERVERSION=$(CLAIRADAPTERVERSION) -e VERSIONTAG=$(VERSIONTAG) \
 	 -e BUILDBIN=$(BUILDBIN) -e REDISVERSION=$(REDISVERSION) -e MIGRATORVERSION=$(MIGRATORVERSION) \
 	 -e CHARTMUSEUMVERSION=$(CHARTMUSEUMVERSION) -e DOCKERIMAGENAME_CHART_SERVER=$(DOCKERIMAGENAME_CHART_SERVER) \
 	 -e NPM_REGISTRY=$(NPM_REGISTRY) -e BASEIMAGETAG=$(BASEIMAGETAG)
 
 build_base_docker:
-	@for name in chartserver clair clair-adapter core db jobservice log nginx notary-server notary-signer portal prepare redis registry registryctl; do \
+	@for name in chartserver clair clair-adapter trivy-adapter core db jobservice log nginx notary-server notary-signer portal prepare redis registry registryctl; do \
 		echo $$name ; \
 		$(DOCKERBUILD) --pull -f $(MAKEFILEPATH_PHOTON)/$$name/Dockerfile.base -t goharbor/harbor-$$name-base:$(BASEIMAGETAG) . ; \
 		$(PUSHSCRIPTPATH)/$(PUSHSCRIPTNAME) goharbor/harbor-$$name-base:$(BASEIMAGETAG) $(REGISTRYUSER) $(REGISTRYPASSWORD) ; \
@@ -483,9 +496,12 @@ swagger_client:
 	@echo "Generate swagger client"
 	wget -q https://repo1.maven.org/maven2/io/swagger/swagger-codegen-cli/2.3.1/swagger-codegen-cli-2.3.1.jar -O swagger-codegen-cli.jar
 	rm -rf harborclient
-	mkdir harborclient
-	java -jar swagger-codegen-cli.jar generate -i api/v2.0/legacy_swagger.yaml -l python -o harborclient
-	cd harborclient; python ./setup.py install
+	mkdir  -p harborclient/harbor_swagger_client
+	mkdir  -p harborclient/harbor_v2_swagger_client
+	java -jar swagger-codegen-cli.jar generate -i api/v2.0/legacy_swagger.yaml -l python -o harborclient/harbor_swagger_client -DpackageName=swagger_client
+	java -jar swagger-codegen-cli.jar generate -i api/v2.0/swagger.yaml -l python -o harborclient/harbor_v2_swagger_client -DpackageName=v2_swagger_client
+	cd harborclient/harbor_swagger_client; python ./setup.py install
+	cd harborclient/harbor_v2_swagger_client; python ./setup.py install
 	pip install docker -q
 	pip freeze
 

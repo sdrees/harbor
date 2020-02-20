@@ -20,16 +20,19 @@ import (
 	"github.com/goharbor/harbor/src/api/artifact/abstractor"
 	"github.com/goharbor/harbor/src/api/artifact/abstractor/resolver"
 	"github.com/goharbor/harbor/src/api/artifact/descriptor"
+	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/utils"
 	"github.com/goharbor/harbor/src/internal"
 	"github.com/goharbor/harbor/src/pkg/art"
+	"github.com/goharbor/harbor/src/pkg/artifactrash"
+	"github.com/goharbor/harbor/src/pkg/artifactrash/model"
 	"github.com/goharbor/harbor/src/pkg/immutabletag/match"
 	"github.com/goharbor/harbor/src/pkg/immutabletag/match/rule"
 	"github.com/goharbor/harbor/src/pkg/label"
+	"github.com/goharbor/harbor/src/pkg/registry"
 	"github.com/goharbor/harbor/src/pkg/signature"
 	"github.com/opencontainers/go-digest"
 	"strings"
-
 	// registry image resolvers
 	_ "github.com/goharbor/harbor/src/api/artifact/abstractor/resolver/image"
 	// register chart resolver
@@ -56,8 +59,12 @@ type Controller interface {
 	// and are attached to the artifact. If the tags don't exist, create them first.
 	// The "created" will be set as true when the artifact is created
 	Ensure(ctx context.Context, repositoryID int64, digest string, tags ...string) (created bool, id int64, err error)
+	// Count returns the total count of artifacts according to the query.
+	// The artifacts that referenced by others and without tags are not counted
+	Count(ctx context.Context, query *q.Query) (total int64, err error)
 	// List artifacts according to the query, specify the properties returned with option
-	List(ctx context.Context, query *q.Query, option *Option) (total int64, artifacts []*Artifact, err error)
+	// The artifacts that referenced by others and without tags are not returned
+	List(ctx context.Context, query *q.Query, option *Option) (artifacts []*Artifact, err error)
 	// Get the artifact specified by ID, specify the properties returned with option
 	Get(ctx context.Context, id int64, option *Option) (artifact *Artifact, err error)
 	// Get the artifact specified by repository name and reference, the reference can be tag or digest,
@@ -65,8 +72,10 @@ type Controller interface {
 	GetByReference(ctx context.Context, repository, reference string, option *Option) (artifact *Artifact, err error)
 	// Delete the artifact specified by ID. All tags attached to the artifact are deleted as well
 	Delete(ctx context.Context, id int64) (err error)
+	// Copy the artifact whose ID is specified by "srcArtID" into the repository specified by "dstRepoID"
+	Copy(ctx context.Context, srcArtID, dstRepoID int64) (id int64, err error)
 	// ListTags lists the tags according to the query, specify the properties returned with option
-	ListTags(ctx context.Context, query *q.Query, option *TagOption) (total int64, tags []*Tag, err error)
+	ListTags(ctx context.Context, query *q.Query, option *TagOption) (tags []*Tag, err error)
 	// CreateTag creates a tag
 	CreateTag(ctx context.Context, tag *Tag) (id int64, err error)
 	// DeleteTag deletes the tag specified by tagID
@@ -89,11 +98,13 @@ func NewController() Controller {
 	return &controller{
 		repoMgr:      repository.Mgr,
 		artMgr:       artifact.Mgr,
+		artrashMgr:   artifactrash.Mgr,
 		tagMgr:       tag.Mgr,
 		sigMgr:       signature.GetManager(),
 		labelMgr:     label.Mgr,
 		abstractor:   abstractor.NewAbstractor(),
 		immutableMtr: rule.NewRuleMatcher(),
+		regCli:       registry.Cli,
 	}
 }
 
@@ -102,11 +113,13 @@ func NewController() Controller {
 type controller struct {
 	repoMgr      repository.Manager
 	artMgr       artifact.Manager
+	artrashMgr   artifactrash.Manager
 	tagMgr       tag.Manager
 	sigMgr       signature.Manager
 	labelMgr     label.Manager
 	abstractor   abstractor.Abstractor
 	immutableMtr match.ImmutableTagMatcher
+	regCli       registry.Client
 }
 
 func (c *controller) Ensure(ctx context.Context, repositoryID int64, digest string, tags ...string) (bool, int64, error) {
@@ -181,7 +194,7 @@ func (c *controller) ensureTag(ctx context.Context, repositoryID, artifactID int
 			"name":          name,
 		},
 	}
-	_, tags, err := c.tagMgr.List(ctx, query)
+	tags, err := c.tagMgr.List(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -212,17 +225,22 @@ func (c *controller) ensureTag(ctx context.Context, repositoryID, artifactID int
 	return err
 }
 
-func (c *controller) List(ctx context.Context, query *q.Query, option *Option) (int64, []*Artifact, error) {
-	total, arts, err := c.artMgr.List(ctx, query)
+func (c *controller) Count(ctx context.Context, query *q.Query) (int64, error) {
+	return c.artMgr.Count(ctx, query)
+}
+
+func (c *controller) List(ctx context.Context, query *q.Query, option *Option) ([]*Artifact, error) {
+	arts, err := c.artMgr.List(ctx, query)
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 	var artifacts []*Artifact
 	for _, art := range arts {
 		artifacts = append(artifacts, c.assembleArtifact(ctx, art, option))
 	}
-	return total, artifacts, nil
+	return artifacts, nil
 }
+
 func (c *controller) Get(ctx context.Context, id int64, option *Option) (*Artifact, error) {
 	art, err := c.artMgr.Get(ctx, id)
 	if err != nil {
@@ -257,7 +275,7 @@ func (c *controller) getByTag(ctx context.Context, repository, tag string, optio
 	if err != nil {
 		return nil, err
 	}
-	_, tags, err := c.tagMgr.List(ctx, &q.Query{
+	tags, err := c.tagMgr.List(ctx, &q.Query{
 		Keywords: map[string]interface{}{
 			"RepositoryID": repo.RepositoryID,
 			"Name":         tag,
@@ -288,6 +306,7 @@ func (c *controller) deleteDeeply(ctx context.Context, id int64, isRoot bool) er
 		}
 		return err
 	}
+
 	// the child artifact is referenced by some tags, skip
 	if !isRoot && len(art.Tags) > 0 {
 		return nil
@@ -342,25 +361,100 @@ func (c *controller) deleteDeeply(ctx context.Context, id int64, isRoot bool) er
 		return err
 	}
 
+	repo, err := c.repoMgr.Get(ctx, art.RepositoryID)
+	if err != nil && !ierror.IsErr(err, ierror.NotFoundCode) {
+		return err
+	}
+	_, err = c.artrashMgr.Create(ctx, &model.ArtifactTrash{
+		MediaType:         art.MediaType,
+		ManifestMediaType: art.ManifestMediaType,
+		RepositoryName:    repo.Name,
+		Digest:            art.Digest,
+	})
+	if err != nil && !ierror.IsErr(err, ierror.ConflictCode) {
+		return err
+	}
 	// TODO fire delete artifact event
 
 	return nil
+}
+
+func (c *controller) Copy(ctx context.Context, srcArtID, dstRepoID int64) (int64, error) {
+	srcArt, err := c.Get(ctx, srcArtID, &Option{WithTag: true})
+	if err != nil {
+		return 0, err
+	}
+	srcRepo, err := c.repoMgr.Get(ctx, srcArt.RepositoryID)
+	if err != nil {
+		return 0, err
+	}
+	dstRepo, err := c.repoMgr.Get(ctx, dstRepoID)
+	if err != nil {
+		return 0, err
+	}
+
+	_, err = c.artMgr.GetByDigest(ctx, dstRepoID, srcArt.Digest)
+	// the artifact already exists in the destination repository
+	if err == nil {
+		return 0, ierror.New(nil).WithCode(ierror.ConflictCode).
+			WithMessage("the artifact %s already exists under the repository %s",
+				srcArt.Digest, dstRepo.Name)
+	}
+	if !ierror.IsErr(err, ierror.NotFoundCode) {
+		return 0, err
+	}
+
+	// only copy the tags of outermost artifact
+	var tags []string
+	for _, tag := range srcArt.Tags {
+		tags = append(tags, tag.Name)
+	}
+	return c.copyDeeply(ctx, srcRepo, srcArt, dstRepo, tags...)
+}
+
+// as we call the docker registry APIs in the registry client directly,
+// this bypass our own logic(ensure, fire event, etc.) inside the registry handlers,
+// these logic must be covered explicitly here.
+// "copyDeeply" iterates the child artifacts and copy them first
+func (c *controller) copyDeeply(ctx context.Context, srcRepo *models.RepoRecord, srcArt *Artifact,
+	dstRepo *models.RepoRecord, tags ...string) (int64, error) {
+	// copy child artifacts if contains any
+	for _, reference := range srcArt.References {
+		childArt, err := c.Get(ctx, reference.ChildID, nil)
+		if err != nil {
+			return 0, err
+		}
+		if _, err = c.copyDeeply(ctx, srcRepo, childArt, dstRepo); err != nil {
+			return 0, err
+		}
+	}
+	// copy the parent artifact
+	if err := c.regCli.Copy(srcRepo.Name, srcArt.Digest,
+		dstRepo.Name, srcArt.Digest, false); err != nil {
+		return 0, err
+	}
+	_, id, err := c.Ensure(ctx, dstRepo.RepositoryID, srcArt.Digest, tags...)
+	if err != nil {
+		return 0, err
+	}
+	// TODO fire event
+	return id, nil
 }
 
 func (c *controller) CreateTag(ctx context.Context, tag *Tag) (int64, error) {
 	// TODO fire event
 	return c.tagMgr.Create(ctx, &(tag.Tag))
 }
-func (c *controller) ListTags(ctx context.Context, query *q.Query, option *TagOption) (int64, []*Tag, error) {
-	total, tgs, err := c.tagMgr.List(ctx, query)
+func (c *controller) ListTags(ctx context.Context, query *q.Query, option *TagOption) ([]*Tag, error) {
+	tgs, err := c.tagMgr.List(ctx, query)
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 	var tags []*Tag
 	for _, tg := range tgs {
 		tags = append(tags, c.assembleTag(ctx, tg, option))
 	}
-	return total, tags, nil
+	return tags, nil
 }
 
 func (c *controller) DeleteTag(ctx context.Context, tagID int64) error {
@@ -424,7 +518,7 @@ func (c *controller) assembleArtifact(ctx context.Context, art *artifact.Artifac
 }
 
 func (c *controller) populateTags(ctx context.Context, art *Artifact, option *TagOption) {
-	_, tags, err := c.tagMgr.List(ctx, &q.Query{
+	tags, err := c.tagMgr.List(ctx, &q.Query{
 		Keywords: map[string]interface{}{
 			"artifact_id": art.ID,
 		},
@@ -494,7 +588,7 @@ func (c *controller) populateImmutableStatus(ctx context.Context, tag *Tag) {
 	_, repoName := utils.ParseRepository(repo.Name)
 	matched, err := c.immutableMtr.Match(repo.ProjectID, art.Candidate{
 		Repository:  repoName,
-		Tag:         tag.Name,
+		Tags:        []string{tag.Name},
 		NamespaceID: repo.ProjectID,
 	})
 	if err != nil {

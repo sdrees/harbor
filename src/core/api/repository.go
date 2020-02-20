@@ -27,6 +27,7 @@ import (
 
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
+	"github.com/goharbor/harbor/src/api/scan"
 	"github.com/goharbor/harbor/src/common"
 	"github.com/goharbor/harbor/src/common/dao"
 	commonhttp "github.com/goharbor/harbor/src/common/http"
@@ -41,7 +42,6 @@ import (
 	"github.com/goharbor/harbor/src/jobservice/logger"
 	"github.com/goharbor/harbor/src/pkg/art"
 	"github.com/goharbor/harbor/src/pkg/immutabletag/match/rule"
-	"github.com/goharbor/harbor/src/pkg/scan/api/scan"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
 	"github.com/goharbor/harbor/src/pkg/signature/notary"
 	notarymodel "github.com/goharbor/harbor/src/pkg/signature/notary/model"
@@ -827,7 +827,7 @@ func isImmutable(projectID int64, repo string, tag string) bool {
 	_, repoName := utils.ParseRepository(repo)
 	matched, err := rule.NewRuleMatcher().Match(projectID, art.Candidate{
 		Repository:  repoName,
-		Tag:         tag,
+		Tags:        []string{tag},
 		NamespaceID: projectID,
 	})
 	if err != nil {
