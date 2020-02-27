@@ -7,6 +7,8 @@ import { ArtifactDependency } from "../models";
 import { AdditionLink } from "../../../../../../../ng-swagger-gen/models/addition-link";
 import { IServiceConfig, SERVICE_CONFIG } from "../../../../../../lib/entities/service.config";
 import { ErrorHandler } from "../../../../../../lib/utils/error-handler";
+import { ClarityModule } from "@clr/angular";
+import { CURRENT_BASE_HREF } from "../../../../../../lib/utils/utils";
 
 
 describe('DependenciesComponent', () => {
@@ -35,12 +37,13 @@ describe('DependenciesComponent', () => {
         href: '/test'
     };
     const config: IServiceConfig = {
-        repositoryBaseEndpoint: "/api/repositories/testing"
+        repositoryBaseEndpoint: CURRENT_BASE_HREF + "/repositories/testing"
     };
     beforeEach(async(() => {
         TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot()
+                TranslateModule.forRoot(),
+                ClarityModule
             ],
             declarations: [DependenciesComponent],
             providers: [
@@ -69,7 +72,7 @@ describe('DependenciesComponent', () => {
         component.ngOnInit();
         fixture.detectChanges();
         await fixture.whenStable();
-        const trs = fixture.nativeElement.getElementsByTagName('tr');
-        expect(trs.length).toEqual(3);
+        const rows = fixture.nativeElement.getElementsByTagName('clr-dg-row');
+        expect(rows.length).toEqual(2);
     });
 });
