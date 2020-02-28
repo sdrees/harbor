@@ -15,14 +15,17 @@
 package artifact
 
 import (
+	"container/list"
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/goharbor/harbor/src/api/artifact/abstractor"
 	"github.com/goharbor/harbor/src/api/artifact/abstractor/resolver"
 	"github.com/goharbor/harbor/src/api/artifact/descriptor"
-	"github.com/goharbor/harbor/src/common/utils"
+	"github.com/goharbor/harbor/src/api/tag"
 	"github.com/goharbor/harbor/src/internal"
-	"github.com/goharbor/harbor/src/pkg/art"
 	"github.com/goharbor/harbor/src/pkg/artifactrash"
 	"github.com/goharbor/harbor/src/pkg/artifactrash/model"
 	"github.com/goharbor/harbor/src/pkg/blob"
@@ -32,8 +35,7 @@ import (
 	"github.com/goharbor/harbor/src/pkg/registry"
 	"github.com/goharbor/harbor/src/pkg/signature"
 	"github.com/opencontainers/go-digest"
-	"strings"
-	"time"
+
 	// registry image resolvers
 	_ "github.com/goharbor/harbor/src/api/artifact/abstractor/resolver/image"
 	// register chart resolver
@@ -45,8 +47,6 @@ import (
 	"github.com/goharbor/harbor/src/pkg/artifact"
 	"github.com/goharbor/harbor/src/pkg/q"
 	"github.com/goharbor/harbor/src/pkg/repository"
-	"github.com/goharbor/harbor/src/pkg/tag"
-	tm "github.com/goharbor/harbor/src/pkg/tag/model/tag"
 )
 
 var (
@@ -72,16 +72,10 @@ type Controller interface {
 	// Get the artifact specified by repository name and reference, the reference can be tag or digest,
 	// specify the properties returned with option
 	GetByReference(ctx context.Context, repository, reference string, option *Option) (artifact *Artifact, err error)
-	// Delete the artifact specified by ID. All tags attached to the artifact are deleted as well
+	// Delete the artifact specified by artifact ID
 	Delete(ctx context.Context, id int64) (err error)
 	// Copy the artifact specified by "srcRepo" and "reference" into the repository specified by "dstRepo"
 	Copy(ctx context.Context, srcRepo, reference, dstRepo string) (id int64, err error)
-	// ListTags lists the tags according to the query, specify the properties returned with option
-	ListTags(ctx context.Context, query *q.Query, option *TagOption) (tags []*Tag, err error)
-	// CreateTag creates a tag
-	CreateTag(ctx context.Context, tag *Tag) (id int64, err error)
-	// DeleteTag deletes the tag specified by tagID
-	DeleteTag(ctx context.Context, tagID int64) (err error)
 	// UpdatePullTime updates the pull time for the artifact. If the tagID is provides, update the pull
 	// time of the tag as well
 	UpdatePullTime(ctx context.Context, artifactID int64, tagID int64, time time.Time) (err error)
@@ -93,16 +87,18 @@ type Controller interface {
 	AddLabel(ctx context.Context, artifactID int64, labelID int64) (err error)
 	// RemoveLabel from the specified artifact
 	RemoveLabel(ctx context.Context, artifactID int64, labelID int64) (err error)
+	// Walk walks the artifact tree rooted at root, calling walkFn for each artifact in the tree, including root.
+	Walk(ctx context.Context, root *Artifact, walkFn func(*Artifact) error, option *Option) error
 }
 
 // NewController creates an instance of the default artifact controller
 func NewController() Controller {
 	return &controller{
+		tagCtl:       tag.Ctl,
 		repoMgr:      repository.Mgr,
 		artMgr:       artifact.Mgr,
 		artrashMgr:   artifactrash.Mgr,
 		blobMgr:      blob.Mgr,
-		tagMgr:       tag.Mgr,
 		sigMgr:       signature.GetManager(),
 		labelMgr:     label.Mgr,
 		abstractor:   abstractor.NewAbstractor(),
@@ -114,11 +110,11 @@ func NewController() Controller {
 // TODO concurrency summary
 
 type controller struct {
+	tagCtl       tag.Controller
 	repoMgr      repository.Manager
 	artMgr       artifact.Manager
 	artrashMgr   artifactrash.Manager
 	blobMgr      blob.Manager
-	tagMgr       tag.Manager
 	sigMgr       signature.Manager
 	labelMgr     label.Manager
 	abstractor   abstractor.Abstractor
@@ -132,7 +128,7 @@ func (c *controller) Ensure(ctx context.Context, repository, digest string, tags
 		return false, 0, err
 	}
 	for _, tag := range tags {
-		if err = c.ensureTag(ctx, artifact.RepositoryID, artifact.ID, tag); err != nil {
+		if err = c.tagCtl.Ensure(ctx, artifact.RepositoryID, artifact.ID, tag); err != nil {
 			return false, 0, err
 		}
 	}
@@ -189,44 +185,6 @@ func (c *controller) ensureArtifact(ctx context.Context, repository, digest stri
 	return true, artifact, nil
 }
 
-func (c *controller) ensureTag(ctx context.Context, repositoryID, artifactID int64, name string) error {
-	query := &q.Query{
-		Keywords: map[string]interface{}{
-			"repository_id": repositoryID,
-			"name":          name,
-		},
-	}
-	tags, err := c.tagMgr.List(ctx, query)
-	if err != nil {
-		return err
-	}
-	// the tag already exists under the repository
-	if len(tags) > 0 {
-		tag := tags[0]
-		// the tag already exists under the repository and is attached to the artifact, return directly
-		if tag.ArtifactID == artifactID {
-			return nil
-		}
-		// the tag exists under the repository, but it is attached to other artifact
-		// update it to point to the provided artifact
-		tag.ArtifactID = artifactID
-		tag.PushTime = time.Now()
-		return c.tagMgr.Update(ctx, tag, "ArtifactID", "PushTime")
-	}
-	// the tag doesn't exist under the repository, create it
-	_, err = c.tagMgr.Create(ctx, &tm.Tag{
-		RepositoryID: repositoryID,
-		ArtifactID:   artifactID,
-		Name:         name,
-		PushTime:     time.Now(),
-	})
-	// ignore the conflict error
-	if err != nil && ierror.IsConflictErr(err) {
-		return nil
-	}
-	return err
-}
-
 func (c *controller) Count(ctx context.Context, query *q.Query) (int64, error) {
 	return c.artMgr.Count(ctx, query)
 }
@@ -274,12 +232,12 @@ func (c *controller) getByTag(ctx context.Context, repository, tag string, optio
 	if err != nil {
 		return nil, err
 	}
-	tags, err := c.tagMgr.List(ctx, &q.Query{
+	tags, err := c.tagCtl.List(ctx, &q.Query{
 		Keywords: map[string]interface{}{
 			"RepositoryID": repo.RepositoryID,
 			"Name":         tag,
 		},
-	})
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +299,11 @@ func (c *controller) deleteDeeply(ctx context.Context, id int64, isRoot bool) er
 
 	// delete all tags that attached to the root artifact
 	if isRoot {
-		if err = c.tagMgr.DeleteOfArtifact(ctx, id); err != nil {
+		var ids []int64
+		for _, tag := range art.Tags {
+			ids = append(ids, tag.ID)
+		}
+		if err = c.tagCtl.DeleteTags(ctx, ids); err != nil {
 			return err
 		}
 	}
@@ -356,7 +318,7 @@ func (c *controller) deleteDeeply(ctx context.Context, id int64, isRoot bool) er
 		return err
 	}
 
-	// clean associations between blob and project when when the blob is not needed by project
+	// clean associations between blob and project when the blob is not needed by project
 	if err := c.blobMgr.CleanupAssociationsForProject(ctx, art.ProjectID, blobs); err != nil {
 		return err
 	}
@@ -448,47 +410,21 @@ func (c *controller) copyDeeply(ctx context.Context, srcRepo, reference, dstRepo
 	return id, nil
 }
 
-func (c *controller) CreateTag(ctx context.Context, tag *Tag) (int64, error) {
-	// TODO fire event
-	return c.tagMgr.Create(ctx, &(tag.Tag))
-}
-func (c *controller) ListTags(ctx context.Context, query *q.Query, option *TagOption) ([]*Tag, error) {
-	tgs, err := c.tagMgr.List(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	var tags []*Tag
-	for _, tg := range tgs {
-		art, err := c.artMgr.Get(ctx, tg.ArtifactID)
-		if err != nil {
-			return nil, err
-		}
-		tags = append(tags, c.assembleTag(ctx, art, tg, option))
-	}
-	return tags, nil
-}
-
-func (c *controller) DeleteTag(ctx context.Context, tagID int64) error {
-	// Immutable checking is covered in middleware
-	// TODO check signature
-	// TODO fire delete tag event
-	return c.tagMgr.Delete(ctx, tagID)
-}
-
 func (c *controller) UpdatePullTime(ctx context.Context, artifactID int64, tagID int64, time time.Time) error {
-	tag, err := c.tagMgr.Get(ctx, tagID)
+	tag, err := c.tagCtl.Get(ctx, tagID, nil)
 	if err != nil {
 		return err
 	}
 	if tag.ArtifactID != artifactID {
 		return fmt.Errorf("tag %d isn't attached to artifact %d", tagID, artifactID)
 	}
-	if err := c.artMgr.UpdatePullTime(ctx, artifactID, time); err != nil {
+	if err := c.artMgr.Update(ctx, &artifact.Artifact{
+		ID:       artifactID,
+		PullTime: time,
+	}, "PullTime"); err != nil {
 		return err
 	}
-	return c.tagMgr.Update(ctx, &tm.Tag{
-		ID: tagID,
-	}, "PullTime")
+	return c.tagCtl.Update(ctx, tag, "PullTime")
 }
 
 func (c *controller) GetAddition(ctx context.Context, artifactID int64, addition string) (*resolver.Addition, error) {
@@ -505,6 +441,39 @@ func (c *controller) AddLabel(ctx context.Context, artifactID int64, labelID int
 
 func (c *controller) RemoveLabel(ctx context.Context, artifactID int64, labelID int64) error {
 	return c.labelMgr.RemoveFrom(ctx, labelID, artifactID)
+}
+
+func (c *controller) Walk(ctx context.Context, root *Artifact, walkFn func(*Artifact) error, option *Option) error {
+	queue := list.New()
+	queue.PushBack(root)
+
+	for queue.Len() > 0 {
+		elem := queue.Front()
+		queue.Remove(elem)
+
+		artifact := elem.Value.(*Artifact)
+		if err := walkFn(artifact); err != nil {
+			return err
+		}
+
+		if len(artifact.References) > 0 {
+			var ids []int64
+			for _, ref := range artifact.References {
+				ids = append(ids, ref.ChildID)
+			}
+
+			artifacts, err := c.List(ctx, q.New(q.KeyWords{"id__in": ids}), option)
+			if err != nil {
+				return err
+			}
+
+			for _, artifact := range artifacts {
+				queue.PushBack(artifact)
+			}
+		}
+	}
+
+	return nil
 }
 
 // assemble several part into a single artifact
@@ -527,62 +496,17 @@ func (c *controller) assembleArtifact(ctx context.Context, art *artifact.Artifac
 	return artifact
 }
 
-func (c *controller) populateTags(ctx context.Context, art *Artifact, option *TagOption) {
-	tags, err := c.tagMgr.List(ctx, &q.Query{
+func (c *controller) populateTags(ctx context.Context, art *Artifact, option *tag.Option) {
+	tags, err := c.tagCtl.List(ctx, &q.Query{
 		Keywords: map[string]interface{}{
 			"artifact_id": art.ID,
 		},
-	})
+	}, option)
 	if err != nil {
 		log.Errorf("failed to list tag of artifact %d: %v", art.ID, err)
 		return
 	}
-	for _, tag := range tags {
-		art.Tags = append(art.Tags, c.assembleTag(ctx, &art.Artifact, tag, option))
-	}
-}
-
-// assemble several part into a single tag
-func (c *controller) assembleTag(ctx context.Context, art *artifact.Artifact, tag *tm.Tag, option *TagOption) *Tag {
-	t := &Tag{
-		Tag: *tag,
-	}
-	if option == nil {
-		return t
-	}
-	if option.WithImmutableStatus {
-		c.populateImmutableStatus(ctx, art, t)
-	}
-	if option.WithSignature {
-		c.populateTagSignature(ctx, art, t, option)
-	}
-	return t
-}
-
-func (c *controller) populateImmutableStatus(ctx context.Context, artifact *artifact.Artifact, tag *Tag) {
-	_, repoName := utils.ParseRepository(artifact.RepositoryName)
-	matched, err := c.immutableMtr.Match(artifact.ProjectID, art.Candidate{
-		Repository:  repoName,
-		Tags:        []string{tag.Name},
-		NamespaceID: artifact.ProjectID,
-	})
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	tag.Immutable = matched
-}
-
-func (c *controller) populateTagSignature(ctx context.Context, artifact *artifact.Artifact, tag *Tag, option *TagOption) {
-	if option.SignatureChecker == nil {
-		chk, err := signature.GetManager().GetCheckerByRepo(ctx, artifact.RepositoryName)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		option.SignatureChecker = chk
-	}
-	tag.Signed = option.SignatureChecker.IsTagSigned(tag.Name, artifact.Digest)
+	art.Tags = tags
 }
 
 func (c *controller) populateLabels(ctx context.Context, art *Artifact) {

@@ -28,6 +28,7 @@ import (
 	"github.com/goharbor/harbor/src/api/artifact/abstractor/resolver"
 	"github.com/goharbor/harbor/src/api/repository"
 	"github.com/goharbor/harbor/src/api/scan"
+	"github.com/goharbor/harbor/src/api/tag"
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/utils"
 	ierror "github.com/goharbor/harbor/src/internal/error"
@@ -50,6 +51,7 @@ func newArtifactAPI() *artifactAPI {
 		proMgr:  project.Mgr,
 		repoCtl: repository.Ctl,
 		scanCtl: scan.DefaultController,
+		tagCtl:  tag.Ctl,
 	}
 }
 
@@ -59,6 +61,7 @@ type artifactAPI struct {
 	proMgr  project.Manager
 	repoCtl repository.Controller
 	scanCtl scan.Controller
+	tagCtl  tag.Controller
 }
 
 func (a *artifactAPI) ListArtifacts(ctx context.Context, params operation.ListArtifactsParams) middleware.Responder {
@@ -107,8 +110,10 @@ func (a *artifactAPI) ListArtifacts(ctx context.Context, params operation.ListAr
 
 	assembler.NewVulAssembler(boolValue(params.WithScanOverview)).WithArtifacts(artifacts...).Assemble(ctx)
 
-	// TODO add link header
-	return operation.NewListArtifactsOK().WithXTotalCount(total).WithLink("").WithPayload(artifacts)
+	return operation.NewListArtifactsOK().
+		WithXTotalCount(total).
+		WithLink(a.Links(ctx, params.HTTPRequest.URL, total, query.PageNumber, query.PageSize).String()).
+		WithPayload(artifacts)
 }
 
 func (a *artifactAPI) GetArtifact(ctx context.Context, params operation.GetArtifactParams) middleware.Responder {
@@ -163,18 +168,17 @@ func (a *artifactAPI) CopyArtifact(ctx context.Context, params operation.CopyArt
 	}
 
 	dstRepo := fmt.Sprintf("%s/%s", params.ProjectName, params.RepositoryName)
-	_, id, err := a.repoCtl.Ensure(ctx, dstRepo)
+	_, _, err = a.repoCtl.Ensure(ctx, dstRepo)
 	if err != nil {
 		return a.SendError(ctx, err)
 	}
 
-	id, err = a.artCtl.Copy(ctx, srcRepo, ref, dstRepo)
+	_, err = a.artCtl.Copy(ctx, srcRepo, ref, dstRepo)
 	if err != nil {
 		return a.SendError(ctx, err)
 	}
-	// TODO set location header
-	_ = id
-	return operation.NewCopyArtifactCreated()
+	location := strings.TrimSuffix(params.HTTPRequest.URL.Path, "/") + "/" + ref
+	return operation.NewCopyArtifactCreated().WithLocation(location)
 }
 
 func (a *artifactAPI) ScanArtifact(ctx context.Context, params operation.ScanArtifactParams) middleware.Responder {
@@ -232,15 +236,15 @@ func (a *artifactAPI) CreateTag(ctx context.Context, params operation.CreateTagP
 	if err != nil {
 		return a.SendError(ctx, err)
 	}
-	tag := &artifact.Tag{}
+	tag := &tag.Tag{}
 	tag.RepositoryID = art.RepositoryID
 	tag.ArtifactID = art.ID
 	tag.Name = params.Tag.Name
 	tag.PushTime = time.Now()
-	if _, err = a.artCtl.CreateTag(ctx, tag); err != nil {
+	if _, err = a.tagCtl.Create(ctx, tag); err != nil {
 		return a.SendError(ctx, err)
 	}
-	// TODO set location header?
+	// TODO as we provide no API for get the single tag, ignore setting the location header here
 	return operation.NewCreateTagCreated()
 }
 
@@ -268,7 +272,7 @@ func (a *artifactAPI) DeleteTag(ctx context.Context, params operation.DeleteTagP
 			"tag %s attached to artifact %d not found", params.TagName, artifact.ID)
 		return a.SendError(ctx, err)
 	}
-	if err = a.artCtl.DeleteTag(ctx, id); err != nil {
+	if err = a.tagCtl.Delete(ctx, id); err != nil {
 		return a.SendError(ctx, err)
 	}
 	return operation.NewDeleteTagOK()
@@ -340,7 +344,7 @@ func option(withTag, withImmutableStatus, withLabel, withSignature *bool) *artif
 	}
 
 	if option.WithTag {
-		option.TagOption = &artifact.TagOption{
+		option.TagOption = &tag.Option{
 			WithImmutableStatus: boolValue(withImmutableStatus),
 			WithSignature:       boolValue(withSignature),
 		}
