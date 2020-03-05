@@ -15,14 +15,17 @@
 package repository
 
 import (
-	"testing"
-
 	"github.com/goharbor/harbor/src/api/artifact"
 	"github.com/goharbor/harbor/src/common/models"
+	ierror "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/internal/orm"
 	artifacttesting "github.com/goharbor/harbor/src/testing/api/artifact"
+	ormtesting "github.com/goharbor/harbor/src/testing/lib/orm"
+	"github.com/goharbor/harbor/src/testing/mock"
 	"github.com/goharbor/harbor/src/testing/pkg/project"
 	"github.com/goharbor/harbor/src/testing/pkg/repository"
 	"github.com/stretchr/testify/suite"
+	"testing"
 )
 
 type controllerTestSuite struct {
@@ -30,13 +33,13 @@ type controllerTestSuite struct {
 	ctl     *controller
 	proMgr  *project.FakeManager
 	repoMgr *repository.FakeManager
-	artCtl  *artifacttesting.FakeController
+	artCtl  *artifacttesting.Controller
 }
 
 func (c *controllerTestSuite) SetupTest() {
 	c.proMgr = &project.FakeManager{}
 	c.repoMgr = &repository.FakeManager{}
-	c.artCtl = &artifacttesting.FakeController{}
+	c.artCtl = &artifacttesting.Controller{}
 	c.ctl = &controller{
 		proMgr:  c.proMgr,
 		repoMgr: c.repoMgr,
@@ -46,12 +49,10 @@ func (c *controllerTestSuite) SetupTest() {
 
 func (c *controllerTestSuite) TestEnsure() {
 	// already exists
-	c.repoMgr.On("List").Return([]*models.RepoRecord{
-		{
-			RepositoryID: 1,
-			ProjectID:    1,
-			Name:         "library/hello-world",
-		},
+	c.repoMgr.On("GetByName").Return(&models.RepoRecord{
+		RepositoryID: 1,
+		ProjectID:    1,
+		Name:         "library/hello-world",
 	}, nil)
 	created, id, err := c.ctl.Ensure(nil, "library/hello-world")
 	c.Require().Nil(err)
@@ -63,12 +64,12 @@ func (c *controllerTestSuite) TestEnsure() {
 	c.SetupTest()
 
 	// doesn't exist
-	c.repoMgr.On("List").Return([]*models.RepoRecord{}, nil)
+	c.repoMgr.On("GetByName").Return(nil, ierror.NotFoundError(nil))
 	c.proMgr.On("Get", "library").Return(&models.Project{
 		ProjectID: 1,
 	}, nil)
 	c.repoMgr.On("Create").Return(1, nil)
-	created, id, err = c.ctl.Ensure(nil, "library/hello-world")
+	created, id, err = c.ctl.Ensure(orm.NewContext(nil, &ormtesting.FakeOrmer{}), "library/hello-world")
 	c.Require().Nil(err)
 	c.repoMgr.AssertExpectations(c.T())
 	c.proMgr.AssertExpectations(c.T())
@@ -118,8 +119,8 @@ func (c *controllerTestSuite) TestGetByName() {
 func (c *controllerTestSuite) TestDelete() {
 	art := &artifact.Artifact{}
 	art.ID = 1
-	c.artCtl.On("List").Return([]*artifact.Artifact{art}, nil)
-	c.artCtl.On("Delete").Return(nil)
+	mock.OnAnything(c.artCtl, "List").Return([]*artifact.Artifact{art}, nil)
+	mock.OnAnything(c.artCtl, "Delete").Return(nil)
 	c.repoMgr.On("Delete").Return(nil)
 	err := c.ctl.Delete(nil, 1)
 	c.Require().Nil(err)
