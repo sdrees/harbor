@@ -21,6 +21,7 @@ import (
 	"errors"
 	"github.com/goharbor/harbor/src/internal"
 	ierror "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/pkg/q"
 	"net/url"
 	"strconv"
 
@@ -97,6 +98,25 @@ func (b *BaseAPI) RequireProjectAccess(ctx context.Context, projectIDOrName inte
 		return ierror.UnauthorizedError(nil)
 	}
 	return ierror.ForbiddenError(nil)
+}
+
+// BuildQuery builds the query model according to the query string
+func (b *BaseAPI) BuildQuery(ctx context.Context, query *string, pageNumber, pageSize *int64) (*q.Query, error) {
+	var (
+		qs string
+		pn int64
+		ps int64
+	)
+	if query != nil {
+		qs = *query
+	}
+	if pageNumber != nil {
+		pn = *pageNumber
+	}
+	if pageSize != nil {
+		ps = *pageSize
+	}
+	return q.Build(qs, pn, ps)
 }
 
 // Links return Links based on the provided pagination information

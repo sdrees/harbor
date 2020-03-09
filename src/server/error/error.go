@@ -29,6 +29,7 @@ import (
 var (
 	codeMap = map[string]int{
 		ierror.BadRequestCode:                  http.StatusBadRequest,
+		ierror.DIGESTINVALID:                   http.StatusBadRequest,
 		ierror.UnAuthorizedCode:                http.StatusUnauthorized,
 		ierror.ForbiddenCode:                   http.StatusForbidden,
 		ierror.DENIED:                          http.StatusForbidden,
@@ -57,9 +58,6 @@ func SendError(w http.ResponseWriter, err error) {
 	} else {
 		// only log the error whose status code < 500 when debugging to avoid log flooding
 		log.Debug(errPayload)
-	}
-	if statusCode == http.StatusUnauthorized {
-		w.Header().Set("Www-Authenticate", `Basic realm="harbor"`)
 	}
 	w.WriteHeader(statusCode)
 	fmt.Fprintln(w, errPayload)
