@@ -251,7 +251,7 @@
         "ROBOT_ACCOUNTS": "Robot Hesapları",
         "WEBHOOKS": "Ağ Kancaları",
         "IMMUTABLE_TAG": "Tag Immutability",
-        "TAG_STRATEGY": "Tag Strategy"
+        "POLICY": "Policy"
     },
     "PROJECT_CONFIG": {
         "REGISTRY": "Proje kaydı",
@@ -349,7 +349,11 @@
         "DELETION_TITLE": "Robot hesaplarının kaldırılmasını onaylayın",
         "DELETION_SUMMARY": "Robot hesaplarını silmek istiyor musunuz {{param}}?",
         "PULL_IS_MUST": "Çekme izni varsayılan olarak kontrol edilir ve değiştirilemez.",
-        "EXPORT_TO_FILE": "dosyayı dışarı aktar"
+        "EXPORT_TO_FILE": "dosyayı dışarı aktar",
+        "EXPIRES_AT": "Expires At",
+        "EXPIRATION_TOOLTIP": "If not set, the expiration time of system configuration will be used",
+        "INVALID_VALUE": "The value of the expiration time is invalid",
+        "NEVER_EXPIRED": "Never Expired"
     },
     "WEBHOOK": {
         "EDIT_BUTTON": "DÜZENLE",
@@ -363,7 +367,8 @@
         "OF": "of",
         "ITEMS": "adetler",
         "LAST_TRIGGERED": "Son Tetiklenen",
-        "EDIT_WEBHOOK": "Ağ Kancası Uç Noktası",
+        "EDIT_WEBHOOK": "Edit Webhook",
+        "ADD_WEBHOOK": "Add Webhook",
         "CREATE_WEBHOOK": "Ağ kancaları ile başladı",
         "EDIT_WEBHOOK_DESC": "Ağ kancası bildirimleri almak için bitiş noktasını belirtin",
         "CREATE_WEBHOOK_DESC": "Ağ kancalarına başlamak için, web kanca sunucusuna erişmek için bir uç nokta ve kimlik bilgisi sağlayın.",
@@ -377,10 +382,28 @@
         "SAVE_BUTTON": "KAYDET",
         "TEST_ENDPOINT_SUCCESS": "Connection tested successfully.",
         "TEST_ENDPOINT_FAILURE": "Failed to ping endpoint.",
-        "ENABLED_WEBHOOK_TITLE": "Proje Ağ Kancalarını Etkinleştir",
-        "ENABLED_WEBHOOK_SUMMARY": "Proje için ağ kancalarını etkinleştirmek istiyor musunuz?",
-        "DISABLED_WEBHOOK_TITLE": "Proje Ağ kancalarını Devre Dışı Bırak",
-        "DISABLED_WEBHOOK_SUMMARY": "Proje için ağ kancalarını devre dışı bırakmak istiyor musunuz?"
+        "ENABLED_WEBHOOK_TITLE": "Enable  Webhook",
+        "ENABLED_WEBHOOK_SUMMARY": "Do you want to enable webhook {{name}}?",
+        "DISABLED_WEBHOOK_TITLE": "Disable Webhook",
+        "DISABLED_WEBHOOK_SUMMARY": "Do you want to disable webhook {{name}}?",
+        "DELETE_WEBHOOK_TITLE": "Delete Webhook(s)",
+        "DELETE_WEBHOOK_SUMMARY": "Do you want to delete webhook(s) {{names}}?",
+        "WEBHOOKS": "Webhooks",
+        "NEW_WEBHOOK": "New Webhook",
+        "ENABLE": "Enable",
+        "DISABLE": "Disable",
+        "NAME": "Name",
+        "TARGET": "Target",
+        "EVENT_TYPES": "Event types",
+        "DESCRIPTION": "Description",
+        "NO_WEBHOOK": "No Webhook",
+        "LAST_TRIGGER": "Last Trigger",
+        "WEBHOOK_NAME": "Webhook Name",
+        "NO_TRIGGER": "No Trigger",
+        "NAME_REQUIRED": "Name is required",
+        "NOTIFY_TYPE": "Notify Type",
+        "EVENT_TYPE": "Event Type",
+        "EVENT_TYPE_REQUIRED": "Require at least one event type"
     },
     "GROUP": {
         "GROUP": "Grup",
@@ -963,6 +986,7 @@
         },
         "CHART": {
             "SCANNING_TIME": "Tarama tamamlanma zamanı:",
+            "SCANNING_PERCENT": "Scan completed percent:",
             "TOOLTIPS_TITLE": "{{totalVulnerability}} 'nın {{totalPackages}} {{package}} bilinen {{vulnerability}}.",
             "TOOLTIPS_TITLE_SINGULAR": "{{totalVulnerability}} 'nın {{totalPackages}} {{package}} bilinen {{vulnerability}}.",
             "TOOLTIPS_TITLE_ZERO": "No recognizable vulnerability found"
@@ -1004,7 +1028,7 @@
         "UNTAGGED": "Untagged",
         "ALL": "All",
         "PLACEHOLDER": "We couldn't find any artifacts!",
-        "SCAN_UNSUPPORTED": "Scan Unsupported"
+        "SCAN_UNSUPPORTED": "Unsupported"
     },
     "TAG": {
         "CREATION_TIME_PREFIX": "Oluştur",
@@ -1155,7 +1179,9 @@
         "LATEST_JOBS": "Son {{param}} İşler",
         "MSG_SUCCESS": "Çöp Toplama Başarılı",
         "MSG_SCHEDULE_SET": "Çöp Toplama programı belirlendi",
-        "MSG_SCHEDULE_RESET": "Çöp Toplama programı sıfırlandı"
+        "MSG_SCHEDULE_RESET": "Çöp Toplama programı sıfırlandı",
+        "PARAMETERS": "Parameters",
+        "DELETE_UNTAGGED": "Delete Untagged Artifacts"
     },
     "RETAG": {
         "MSG_SUCCESS": "Copy artifact successfully",
@@ -1223,9 +1249,11 @@
         "IN_REPOSITORIES": "Depolar için",
         "REP_SEPARATOR": "Birden çok virgülle ayrılmış depolar, depo* veya ** girin",
         "TAGS": "Etiketler",
+        "INCLUDE_UNTAGGED": " untagged artifacts",
+        "UNTAGGED": " untagged",
         "MATCHES_TAGS": "Etiketleri eşleşir",
         "MATCHES_EXCEPT_TAGS": "Etiketler hariç eşleşir",
-        "TAG_SEPARATOR": "Birden çok virgülle ayrılmış etiket, etiket * veya ** girin",
+        "TAG_SEPARATOR": "Enter multiple comma separated tags, tag*, or **. Optionally include all untagged artifacts when applying the ‘including’ or ‘excluding’ selector by checking the box above.",
         "LABELS": "Etiketler",
         "MATCHES_LABELS": "Eşleşen Etiketler",
         "MATCHES_EXCEPT_LABELS": "Etiketler hariç eşleşmeler",

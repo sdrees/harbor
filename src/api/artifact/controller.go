@@ -19,12 +19,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
-
-	"github.com/goharbor/harbor/src/api/artifact/abstractor"
-	"github.com/goharbor/harbor/src/api/artifact/abstractor/resolver"
-	"github.com/goharbor/harbor/src/api/artifact/descriptor"
+	"github.com/goharbor/harbor/src/api/artifact/processor"
+	"github.com/goharbor/harbor/src/api/event"
 	"github.com/goharbor/harbor/src/api/tag"
 	"github.com/goharbor/harbor/src/internal"
 	"github.com/goharbor/harbor/src/internal/orm"
@@ -34,16 +30,19 @@ import (
 	"github.com/goharbor/harbor/src/pkg/immutabletag/match"
 	"github.com/goharbor/harbor/src/pkg/immutabletag/match/rule"
 	"github.com/goharbor/harbor/src/pkg/label"
+	evt "github.com/goharbor/harbor/src/pkg/notifier/event"
 	"github.com/goharbor/harbor/src/pkg/registry"
 	"github.com/goharbor/harbor/src/pkg/signature"
 	"github.com/opencontainers/go-digest"
+	"strings"
+	"time"
 
 	// registry image resolvers
-	_ "github.com/goharbor/harbor/src/api/artifact/abstractor/resolver/image"
+	_ "github.com/goharbor/harbor/src/api/artifact/processor/image"
 	// register chart resolver
-	_ "github.com/goharbor/harbor/src/api/artifact/abstractor/resolver/chart"
+	_ "github.com/goharbor/harbor/src/api/artifact/processor/chart"
 	// register CNAB resolver
-	_ "github.com/goharbor/harbor/src/api/artifact/abstractor/resolver/cnab"
+	_ "github.com/goharbor/harbor/src/api/artifact/processor/cnab"
 	"github.com/goharbor/harbor/src/common/utils/log"
 	ierror "github.com/goharbor/harbor/src/internal/error"
 	"github.com/goharbor/harbor/src/pkg/artifact"
@@ -59,6 +58,9 @@ var (
 var (
 	// ErrBreak error to break walk
 	ErrBreak = errors.New("break")
+
+	// ErrSkip error to skip walk the children of the artifact
+	ErrSkip = errors.New("skip")
 )
 
 // Controller defines the operations related with artifacts and tags
@@ -89,7 +91,7 @@ type Controller interface {
 	// GetAddition returns the addition of the artifact.
 	// The addition is different according to the artifact type:
 	// build history for image; values.yaml, readme and dependencies for chart, etc
-	GetAddition(ctx context.Context, artifactID int64, additionType string) (addition *resolver.Addition, err error)
+	GetAddition(ctx context.Context, artifactID int64, additionType string) (addition *processor.Addition, err error)
 	// AddLabel to the specified artifact
 	AddLabel(ctx context.Context, artifactID int64, labelID int64) (err error)
 	// RemoveLabel from the specified artifact
@@ -108,9 +110,9 @@ func NewController() Controller {
 		blobMgr:      blob.Mgr,
 		sigMgr:       signature.GetManager(),
 		labelMgr:     label.Mgr,
-		abstractor:   abstractor.NewAbstractor(),
 		immutableMtr: rule.NewRuleMatcher(),
 		regCli:       registry.Cli,
+		abstractor:   NewAbstractor(),
 	}
 }
 
@@ -124,9 +126,9 @@ type controller struct {
 	blobMgr      blob.Manager
 	sigMgr       signature.Manager
 	labelMgr     label.Manager
-	abstractor   abstractor.Abstractor
 	immutableMtr match.ImmutableTagMatcher
 	regCli       registry.Client
+	abstractor   Abstractor
 }
 
 func (c *controller) Ensure(ctx context.Context, repository, digest string, tags ...string) (bool, int64, error) {
@@ -139,6 +141,15 @@ func (c *controller) Ensure(ctx context.Context, repository, digest string, tags
 			return false, 0, err
 		}
 	}
+	// fire event
+	e := &event.PushArtifactEventMetadata{
+		Ctx:      ctx,
+		Artifact: artifact,
+	}
+	if len(tags) > 0 {
+		e.Tag = tags[0]
+	}
+	evt.BuildAndPublish(e)
 	return created, artifact.ID, nil
 }
 
@@ -173,7 +184,7 @@ func (c *controller) ensureArtifact(ctx context.Context, repository, digest stri
 	}
 
 	// populate the artifact type
-	artifact.Type = descriptor.GetArtifactType(artifact.MediaType)
+	artifact.Type = processor.Get(artifact.MediaType).GetArtifactType()
 
 	// create it
 	// use orm.WithTransaction here to avoid the issue:
@@ -330,6 +341,15 @@ func (c *controller) deleteDeeply(ctx context.Context, id int64, isRoot bool) er
 		return err
 	}
 
+	// delete the artifact itself
+	if err = c.artMgr.Delete(ctx, art.ID); err != nil {
+		// the child artifact doesn't exist, skip
+		if !isRoot && ierror.IsErr(err, ierror.NotFoundCode) {
+			return nil
+		}
+		return err
+	}
+
 	blobs, err := c.blobMgr.List(ctx, blob.ListParams{ArtifactDigest: art.Digest})
 	if err != nil {
 		return err
@@ -337,15 +357,6 @@ func (c *controller) deleteDeeply(ctx context.Context, id int64, isRoot bool) er
 
 	// clean associations between blob and project when the blob is not needed by project
 	if err := c.blobMgr.CleanupAssociationsForProject(ctx, art.ProjectID, blobs); err != nil {
-		return err
-	}
-
-	// delete the artifact itself
-	if err = c.artMgr.Delete(ctx, art.ID); err != nil {
-		// the child artifact doesn't exist, skip
-		if !isRoot && ierror.IsErr(err, ierror.NotFoundCode) {
-			return nil
-		}
 		return err
 	}
 
@@ -363,7 +374,18 @@ func (c *controller) deleteDeeply(ctx context.Context, id int64, isRoot bool) er
 		return err
 	}
 
-	// TODO fire delete artifact event
+	// only fire event for the root parent artifact
+	if isRoot {
+		var tags []string
+		for _, tag := range art.Tags {
+			tags = append(tags, tag.Name)
+		}
+		evt.BuildAndPublish(&event.DeleteArtifactEventMetadata{
+			Ctx:      ctx,
+			Artifact: &art.Artifact,
+			Tags:     tags,
+		})
+	}
 
 	return nil
 }
@@ -428,7 +450,6 @@ func (c *controller) copyDeeply(ctx context.Context, srcRepo, reference, dstRepo
 	if err != nil {
 		return 0, err
 	}
-	// TODO fire event
 	return id, nil
 }
 
@@ -449,12 +470,12 @@ func (c *controller) UpdatePullTime(ctx context.Context, artifactID int64, tagID
 	return c.tagCtl.Update(ctx, tag, "PullTime")
 }
 
-func (c *controller) GetAddition(ctx context.Context, artifactID int64, addition string) (*resolver.Addition, error) {
+func (c *controller) GetAddition(ctx context.Context, artifactID int64, addition string) (*processor.Addition, error) {
 	artifact, err := c.artMgr.Get(ctx, artifactID)
 	if err != nil {
 		return nil, err
 	}
-	return c.abstractor.AbstractAddition(ctx, artifact, addition)
+	return processor.Get(artifact.MediaType).AbstractAddition(ctx, artifact, addition)
 }
 
 func (c *controller) AddLabel(ctx context.Context, artifactID int64, labelID int64) error {
@@ -469,14 +490,20 @@ func (c *controller) Walk(ctx context.Context, root *Artifact, walkFn func(*Arti
 	queue := list.New()
 	queue.PushBack(root)
 
+	walked := map[string]bool{}
+
 	for queue.Len() > 0 {
 		elem := queue.Front()
 		queue.Remove(elem)
 
 		artifact := elem.Value.(*Artifact)
+		walked[artifact.Digest] = true
+
 		if err := walkFn(artifact); err != nil {
 			if err == ErrBreak {
 				return nil
+			} else if err == ErrSkip {
+				continue
 			}
 
 			return err
@@ -488,13 +515,16 @@ func (c *controller) Walk(ctx context.Context, root *Artifact, walkFn func(*Arti
 				ids = append(ids, ref.ChildID)
 			}
 
-			artifacts, err := c.List(ctx, q.New(q.KeyWords{"id__in": ids}), option)
+			// HACK: base=* in KeyWords to filter all artifacts
+			children, err := c.List(ctx, q.New(q.KeyWords{"id__in": ids, "base": "*"}), option)
 			if err != nil {
 				return err
 			}
 
-			for _, artifact := range artifacts {
-				queue.PushBack(artifact)
+			for _, child := range children {
+				if !walked[child.Digest] {
+					queue.PushBack(child)
+				}
 			}
 		}
 	}
@@ -545,7 +575,7 @@ func (c *controller) populateLabels(ctx context.Context, art *Artifact) {
 }
 
 func (c *controller) populateAdditionLinks(ctx context.Context, artifact *Artifact) {
-	types := descriptor.ListAdditionTypes(artifact.MediaType)
+	types := processor.Get(artifact.MediaType).ListAdditionTypes()
 	if len(types) > 0 {
 		version := internal.GetAPIVersion(ctx)
 		for _, t := range types {

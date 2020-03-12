@@ -25,16 +25,18 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/goharbor/harbor/src/api/artifact"
-	"github.com/goharbor/harbor/src/api/artifact/abstractor/resolver"
+	"github.com/goharbor/harbor/src/api/artifact/processor"
+	"github.com/goharbor/harbor/src/api/event"
 	"github.com/goharbor/harbor/src/api/repository"
 	"github.com/goharbor/harbor/src/api/scan"
 	"github.com/goharbor/harbor/src/api/tag"
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/utils"
 	ierror "github.com/goharbor/harbor/src/internal/error"
-	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
+	evt "github.com/goharbor/harbor/src/pkg/notifier/event"
 	"github.com/goharbor/harbor/src/server/v2.0/handler/assembler"
 	"github.com/goharbor/harbor/src/server/v2.0/handler/model"
+	"github.com/goharbor/harbor/src/server/v2.0/models"
 	operation "github.com/goharbor/harbor/src/server/v2.0/restapi/operations/artifact"
 	"github.com/opencontainers/go-digest"
 )
@@ -58,6 +60,14 @@ type artifactAPI struct {
 	repoCtl repository.Controller
 	scanCtl scan.Controller
 	tagCtl  tag.Controller
+}
+
+func (a *artifactAPI) Prepare(ctx context.Context, operation string, params interface{}) middleware.Responder {
+	if err := unescapePathParams(params, "RepositoryName"); err != nil {
+		a.SendError(ctx, err)
+	}
+
+	return nil
 }
 
 func (a *artifactAPI) ListArtifacts(ctx context.Context, params operation.ListArtifactsParams) middleware.Responder {
@@ -87,14 +97,14 @@ func (a *artifactAPI) ListArtifacts(ctx context.Context, params operation.ListAr
 		return a.SendError(ctx, err)
 	}
 
-	var artifacts []*model.Artifact
+	assembler := assembler.NewVulAssembler(boolValue(params.WithScanOverview))
+	var artifacts []*models.Artifact
 	for _, art := range arts {
 		artifact := &model.Artifact{}
 		artifact.Artifact = *art
-		artifacts = append(artifacts, artifact)
+		assembler.WithArtifacts(artifact).Assemble(ctx)
+		artifacts = append(artifacts, artifact.ToSwagger())
 	}
-
-	assembler.NewVulAssembler(boolValue(params.WithScanOverview)).WithArtifacts(artifacts...).Assemble(ctx)
 
 	return operation.NewListArtifactsOK().
 		WithXTotalCount(total).
@@ -120,7 +130,7 @@ func (a *artifactAPI) GetArtifact(ctx context.Context, params operation.GetArtif
 
 	assembler.NewVulAssembler(boolValue(params.WithScanOverview)).WithArtifacts(art).Assemble(ctx)
 
-	return operation.NewGetArtifactOK().WithPayload(art)
+	return operation.NewGetArtifactOK().WithPayload(art.ToSwagger())
 }
 
 func (a *artifactAPI) DeleteArtifact(ctx context.Context, params operation.DeleteArtifactParams) middleware.Responder {
@@ -167,30 +177,6 @@ func (a *artifactAPI) CopyArtifact(ctx context.Context, params operation.CopyArt
 	return operation.NewCopyArtifactCreated().WithLocation(location)
 }
 
-func (a *artifactAPI) ScanArtifact(ctx context.Context, params operation.ScanArtifactParams) middleware.Responder {
-	if err := a.RequireProjectAccess(ctx, params.ProjectName, rbac.ActionCreate, rbac.ResourceScan); err != nil {
-		return a.SendError(ctx, err)
-	}
-
-	repository := fmt.Sprintf("%s/%s", params.ProjectName, params.RepositoryName)
-	artifact, err := a.artCtl.GetByReference(ctx, repository, params.Reference, nil)
-	if err != nil {
-		return a.SendError(ctx, err)
-	}
-
-	art := &v1.Artifact{
-		NamespaceID: artifact.ProjectID,
-		Repository:  repository,
-		Digest:      artifact.Digest,
-		MimeType:    artifact.ManifestMediaType,
-	}
-	if err := a.scanCtl.Scan(art); err != nil {
-		return a.SendError(ctx, err)
-	}
-
-	return operation.NewScanArtifactAccepted()
-}
-
 // parse "repository:tag" or "repository@digest" into repository and reference parts
 func parse(s string) (string, string, error) {
 	matches := reference.ReferenceRegexp.FindStringSubmatch(s)
@@ -230,6 +216,14 @@ func (a *artifactAPI) CreateTag(ctx context.Context, params operation.CreateTagP
 	if _, err = a.tagCtl.Create(ctx, tag); err != nil {
 		return a.SendError(ctx, err)
 	}
+
+	// fire event
+	evt.BuildAndPublish(&event.CreateTagEventMetadata{
+		Ctx:              ctx,
+		Tag:              tag.Name,
+		AttachedArtifact: &art.Artifact,
+	})
+
 	// TODO as we provide no API for get the single tag, ignore setting the location header here
 	return operation.NewCreateTagCreated()
 }
@@ -261,6 +255,14 @@ func (a *artifactAPI) DeleteTag(ctx context.Context, params operation.DeleteTagP
 	if err = a.tagCtl.Delete(ctx, id); err != nil {
 		return a.SendError(ctx, err)
 	}
+
+	// fire event
+	evt.BuildAndPublish(&event.DeleteTagEventMetadata{
+		Ctx:              ctx,
+		Tag:              params.TagName,
+		AttachedArtifact: &artifact.Artifact,
+	})
+
 	return operation.NewDeleteTagOK()
 }
 
@@ -274,7 +276,7 @@ func (a *artifactAPI) GetAddition(ctx context.Context, params operation.GetAddit
 		return a.SendError(ctx, err)
 	}
 
-	var addition *resolver.Addition
+	var addition *processor.Addition
 
 	if params.Addition == vulnerabilitiesAddition {
 		addition, err = resolveVulnerabilitiesAddition(ctx, artifact)

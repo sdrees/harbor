@@ -5,9 +5,9 @@ import (
 
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/utils/log"
-	notifyModel "github.com/goharbor/harbor/src/pkg/notification/model"
 	"github.com/goharbor/harbor/src/pkg/notifier"
 	"github.com/goharbor/harbor/src/pkg/notifier/model"
+	notifyModel "github.com/goharbor/harbor/src/pkg/notifier/model"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
 	"github.com/pkg/errors"
 )
@@ -20,6 +20,23 @@ const (
 type Event struct {
 	Topic string
 	Data  interface{}
+}
+
+// TopicEvent - Events that contains topic information
+type TopicEvent interface {
+	Topic() string
+}
+
+// New ...
+func New() *Event {
+	return &Event{}
+}
+
+// WithTopicEvent - builder method
+func (e *Event) WithTopicEvent(topicEvent TopicEvent) *Event {
+	e.Topic = topicEvent.Topic()
+	e.Data = topicEvent
+	return e
 }
 
 // Metadata is the event raw data to be processed
@@ -304,4 +321,21 @@ func (e *Event) Publish() error {
 		return errors.Wrap(err, "failed to publish event")
 	}
 	return nil
+}
+
+// BuildAndPublish builds the event according to the metadata and publish the event
+// The process is done in a separated goroutine
+func BuildAndPublish(metadata ...Metadata) {
+	go func() {
+		event := &Event{}
+		if err := event.Build(metadata...); err != nil {
+			log.Errorf("failed to build the event from metadata: %v", err)
+			return
+		}
+		if err := event.Publish(); err != nil {
+			log.Errorf("failed to publish the event %s: %v", event.Topic, err)
+			return
+		}
+		log.Debugf("event %s published", event.Topic)
+	}()
 }

@@ -10,6 +10,7 @@ schemes:
 basePath: /api/v2.0
 produces:
   - application/json
+  - text/plain
 consumes:
   - application/json
 securityDefinitions:
@@ -333,7 +334,7 @@ paths:
       summary: Scan the artifact
       description: Scan the specified artifact
       tags:
-        - artifact
+        - scan
       operationId: scanArtifact
       parameters:
         - $ref: '#/parameters/requestId'
@@ -343,6 +344,38 @@ paths:
       responses:
         '202':
           $ref: '#/responses/202'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '404':
+          $ref: '#/responses/404'
+        '500':
+          $ref: '#/responses/500'
+  /projects/{project_name}/repositories/{repository_name}/artifacts/{reference}/scan/{report_id}/log:
+    get:
+      summary: Get the log of the scan report
+      description: Get the log of the scan report
+      tags:
+        - scan
+      operationId: getReportLog
+      produces:
+        - text/plain
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - $ref: '#/parameters/projectName'
+        - $ref: '#/parameters/repositoryName'
+        - $ref: '#/parameters/reference'
+        - name: report_id
+          type: string
+          in: path
+          required: true
+          description: The report id to get the log
+      responses:
+        '200':
+          description: Successfully get scan log file
+          schema:
+            type: string
         '401':
           $ref: '#/responses/401'
         '403':
@@ -565,6 +598,23 @@ paths:
           $ref: '#/responses/401'
         '500':
           $ref: '#/responses/500'
+  /projects/{project_id}/webhook/events:
+    get:
+      summary: Get supported event types and notify types.
+      description: Get supportted event types and notify types.
+      tags:
+        - notification
+      parameters:
+        - $ref: '#/parameters/projectId'
+      responses:
+        '200':
+          description: Success
+          schema:
+            $ref: '#/definitions/SupportedWebhookEventTypes'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
 parameters:
   query:
     name: q
@@ -583,6 +633,12 @@ parameters:
     name: project_name
     in: path
     description: The name of the project
+    required: true
+    type: string
+  projectId:
+    name: project_id
+    in: path
+    description: The ID of the project
     required: true
     type: string
   repositoryName:
@@ -740,10 +796,6 @@ definitions:
         description: The update time of the repository
   Artifact:
     type: object
-    x-go-type:
-      import:
-        package: "github.com/goharbor/harbor/src/server/v2.0/handler/model"
-      type: "Artifact"
     properties:
       id:
         type: integer
@@ -874,6 +926,13 @@ definitions:
         description: The digest of the child artifact
       platform:
         $ref: '#/definitions/Platform'
+      annotations:
+        $ref: '#/definitions/Annotations'
+      urls:
+        type: array
+        description: The download URLs
+        items:
+          type: string
   Platform:
     type: object
     properties:
@@ -925,9 +984,6 @@ definitions:
         type: string
         format: date-time
         description: The update time of the label
-      deleted:
-        type: boolean
-        description: Whether the label is deleted or not
   ScanOverview:
     type: object
     description: 'The scan overview attached in the metadata of tag'
@@ -966,6 +1022,10 @@ definitions:
         format: date-time
         description: 'The end time of the scan process that generating report'
         example: '2006-01-02T15:04:05'
+      complete_percent:
+        type: integer
+        description: 'The complete percent of the scanning which value is between 0 and 100'
+        example: 100
   VulnerabilitySummary:
     type: object
     description: |
@@ -1012,3 +1072,23 @@ definitions:
       op_time:
         type: string
         description: The time when this operation is triggered.
+  SupportedWebhookEventTypes:
+    type: object
+    description: Supportted webhook event types and notify types.
+    properties:
+      event_type:
+        type: array
+        items:
+          $ref: '#/definitions/EventType'
+      notify_type:
+        type: array
+        items:
+          $ref: '#/definitions/NotifyType'
+  EventType:
+    type: string
+    description: Webhook supportted event type.
+    example: 'pullImage'
+  NotifyType:
+    type: string
+    description: Webhook supportted notify type.
+    example: 'http'

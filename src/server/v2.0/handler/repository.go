@@ -17,13 +17,16 @@ package handler
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/goharbor/harbor/src/api/artifact"
+	"github.com/goharbor/harbor/src/api/event"
 	"github.com/goharbor/harbor/src/api/project"
 	"github.com/goharbor/harbor/src/api/repository"
 	cmodels "github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/utils/log"
+	evt "github.com/goharbor/harbor/src/pkg/notifier/event"
 	"github.com/goharbor/harbor/src/pkg/q"
 	"github.com/goharbor/harbor/src/server/v2.0/models"
 	operation "github.com/goharbor/harbor/src/server/v2.0/restapi/operations/repository"
@@ -42,6 +45,14 @@ type repositoryAPI struct {
 	proCtl  project.Controller
 	repoCtl repository.Controller
 	artCtl  artifact.Controller
+}
+
+func (r *repositoryAPI) Prepare(ctx context.Context, operation string, params interface{}) middleware.Responder {
+	if err := unescapePathParams(params, "RepositoryName"); err != nil {
+		r.SendError(ctx, err)
+	}
+
+	return nil
 }
 
 func (r *repositoryAPI) ListRepositories(ctx context.Context, params operation.ListRepositoriesParams) middleware.Responder {
@@ -132,5 +143,12 @@ func (r *repositoryAPI) DeleteRepository(ctx context.Context, params operation.D
 	if err := r.repoCtl.Delete(ctx, repository.RepositoryID); err != nil {
 		return r.SendError(ctx, err)
 	}
+
+	// fire event
+	evt.BuildAndPublish(&event.DeleteRepositoryEventMetadata{
+		Ctx:        ctx,
+		Repository: repository.Name,
+	})
+
 	return operation.NewDeleteRepositoryOK()
 }

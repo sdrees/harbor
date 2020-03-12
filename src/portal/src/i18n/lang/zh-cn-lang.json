@@ -250,7 +250,7 @@
         "ROBOT_ACCOUNTS": "机器人账户",
         "WEBHOOKS": "Webhooks",
         "IMMUTABLE_TAG": "不可变的Tag",
-        "TAG_STRATEGY": "Tag 策略"
+        "POLICY": "策略"
     },
     "PROJECT_CONFIG": {
         "REGISTRY": "项目仓库",
@@ -348,7 +348,11 @@
         "DELETION_TITLE": "删除账户确认",
         "DELETION_SUMMARY": "你确认删除机器人账户 {{param}}?",
         "PULL_IS_MUST": "拉取权限默认选中且不可修改。",
-        "EXPORT_TO_FILE": "导出到文件中"
+        "EXPORT_TO_FILE": "导出到文件中",
+        "EXPIRES_AT": "到期日",
+        "EXPIRATION_TOOLTIP": "如不设置，将会使用系统设置中的过期时间。",
+        "INVALID_VALUE": "无效的过期日期",
+        "NEVER_EXPIRED": "永不过期"
     },
     "WEBHOOK": {
         "EDIT_BUTTON": "编辑",
@@ -361,8 +365,9 @@
         "DISABLED": "停用",
         "OF": "共计",
         "ITEMS": "条记录",
-        "LAST_TRIGGERED": "最近触发事件",
-        "EDIT_WEBHOOK": "Webhook 目标",
+        "LAST_TRIGGERED": "最近触发时间",
+        "EDIT_WEBHOOK": "编辑 Webhook",
+        "ADD_WEBHOOK": "新建 Webhook",
         "CREATE_WEBHOOK": "创建 Webhooks",
         "EDIT_WEBHOOK_DESC": "指定接收 Webhook 通知的目标",
         "CREATE_WEBHOOK_DESC": "为了启用 webhook, 请提供 Endpoint 和凭据以访问 Webhook 服务器。",
@@ -376,10 +381,28 @@
         "SAVE_BUTTON": "保存",
         "TEST_ENDPOINT_SUCCESS": "测试连接成功。",
         "TEST_ENDPOINT_FAILURE": "测试连接失败。",
-        "ENABLED_WEBHOOK_TITLE": "启用项目的 Webhooks",
-        "ENABLED_WEBHOOK_SUMMARY": "你希望开启项目的 Webhooks 吗？",
-        "DISABLED_WEBHOOK_TITLE": "停用项目的 Webhooks",
-        "DISABLED_WEBHOOK_SUMMARY": "你希望停用项目的 Webhooks 吗？"
+        "ENABLED_WEBHOOK_TITLE": "启用  Webhook",
+        "ENABLED_WEBHOOK_SUMMARY": "确认启用 webhook {{name}}？",
+        "DISABLED_WEBHOOK_TITLE": "停用 Webhook",
+        "DISABLED_WEBHOOK_SUMMARY": "确认停用 webhook {{name}}？",
+        "DELETE_WEBHOOK_TITLE": "删除 Webhook(s)",
+        "DELETE_WEBHOOK_SUMMARY": "确认删除 webhook(s) {{names}}?",
+        "WEBHOOKS": "Webhooks",
+        "NEW_WEBHOOK": "新建 Webhook",
+        "ENABLE": "启用",
+        "DISABLE": "禁用",
+        "NAME": "名称",
+        "TARGET": "目标地址",
+        "EVENT_TYPES": "事件类型",
+        "DESCRIPTION": "简介",
+        "NO_WEBHOOK": "暂无 Webhook 记录",
+        "LAST_TRIGGER": "最新触发",
+        "WEBHOOK_NAME": "Webhook 名称",
+        "NO_TRIGGER": "暂无触发记录",
+        "NAME_REQUIRED": "名称为必填项",
+        "NOTIFY_TYPE": "通知类型",
+        "EVENT_TYPE": "事件类型",
+        "EVENT_TYPE_REQUIRED": "请至少选择一种事件类型"
     },
     "GROUP": {
         "GROUP": "组",
@@ -963,6 +986,7 @@
         },
         "CHART": {
             "SCANNING_TIME": "扫描完成时间:",
+            "SCANNING_PERCENT": "扫描完成度:",
             "TOOLTIPS_TITLE": "{{totalPackages}}个{{package}}中的{{totalVulnerability}}个含有{{vulnerability}}。",
             "TOOLTIPS_TITLE_SINGULAR": "{{totalPackages}}个{{package}}中的{{totalVulnerability}}个含有{{vulnerability}}。",
             "TOOLTIPS_TITLE_ZERO": "没有发现可识别的漏洞"
@@ -1152,7 +1176,9 @@
         "LATEST_JOBS": "最新的 {{param}} 个任务",
         "MSG_SUCCESS": "垃圾回收成功",
         "MSG_SCHEDULE_SET": "垃圾回收定时任务设置成功",
-        "MSG_SCHEDULE_RESET": "垃圾回收定时任务已被重置"
+        "MSG_SCHEDULE_RESET": "垃圾回收定时任务已被重置",
+        "PARAMETERS": "参数",
+        "DELETE_UNTAGGED": "删除无 Tag 的 Artifacts"
     },
     "RETAG": {
         "MSG_SUCCESS": "Artifact 拷贝成功",
@@ -1220,9 +1246,11 @@
         "IN_REPOSITORIES": "应用到仓库",
         "REP_SEPARATOR": "使用逗号分隔repos,repo*和**",
         "TAGS": "Tags",
+        "INCLUDE_UNTAGGED": " 不含tag 的 artifacts",
+        "UNTAGGED": " 不含tag",
         "MATCHES_TAGS": "匹配tags",
         "MATCHES_EXCEPT_TAGS": "排除tags",
-        "TAG_SEPARATOR": "使用逗号分割tags,tag*和**",
+        "TAG_SEPARATOR": "输入多个逗号分隔的Tags, Tag*或**。可通过勾选将未加 Tag 的镜像作为此策略的一部分。",
         "LABELS": "标签",
         "MATCHES_LABELS": "匹配标签",
         "MATCHES_EXCEPT_LABELS": "排除标签",

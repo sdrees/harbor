@@ -17,10 +17,14 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/url"
+	"reflect"
 
 	"github.com/goharbor/harbor/src/api/artifact"
-	"github.com/goharbor/harbor/src/api/artifact/abstractor/resolver"
+	"github.com/goharbor/harbor/src/api/artifact/processor"
 	"github.com/goharbor/harbor/src/api/scan"
+	"github.com/goharbor/harbor/src/common/utils/log"
 	"github.com/goharbor/harbor/src/pkg/scan/report"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
 )
@@ -33,15 +37,8 @@ func boolValue(v *bool) bool {
 	return false
 }
 
-func resolveVulnerabilitiesAddition(ctx context.Context, artifact *artifact.Artifact) (*resolver.Addition, error) {
-	art := &v1.Artifact{
-		NamespaceID: artifact.ProjectID,
-		Repository:  artifact.RepositoryName,
-		Digest:      artifact.Digest,
-		MimeType:    artifact.ManifestMediaType,
-	}
-
-	reports, err := scan.DefaultController.GetReport(art, []string{v1.MimeTypeNativeReport})
+func resolveVulnerabilitiesAddition(ctx context.Context, artifact *artifact.Artifact) (*processor.Addition, error) {
+	reports, err := scan.DefaultController.GetReport(ctx, artifact, []string{v1.MimeTypeNativeReport})
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +60,46 @@ func resolveVulnerabilitiesAddition(ctx context.Context, artifact *artifact.Arti
 
 	content, _ := json.Marshal(vulnerabilities)
 
-	return &resolver.Addition{
+	return &processor.Addition{
 		Content:     content,
 		ContentType: "application/json",
 	}, nil
+}
+
+func unescapePathParams(params interface{}, fieldNames ...string) error {
+	val := reflect.ValueOf(params)
+	if val.Kind() != reflect.Ptr {
+		return fmt.Errorf("params must be ptr")
+	}
+
+	val = val.Elem()
+	if val.Kind() != reflect.Struct {
+		return fmt.Errorf("params must be struct")
+	}
+
+	for _, name := range fieldNames {
+		field := val.FieldByName(name)
+		if !field.IsValid() {
+			log.Warningf("field %s not found in params %v", name, params)
+			continue
+		}
+
+		if !field.CanSet() {
+			log.Warningf("field %s can not be changed in params %v", name, params)
+			continue
+		}
+
+		switch field.Type().Kind() {
+		case reflect.String:
+			v, err := url.PathUnescape(field.String())
+			if err != nil {
+				return err
+			}
+			field.SetString(v)
+		default:
+			log.Warningf("field %s can not be unescaped in params %v", name, params)
+		}
+	}
+
+	return nil
 }

@@ -20,8 +20,8 @@ ${SERVER_API_ENDPOINT}  ${SERVER_URL}/api
 
 *** Test Cases ***
 # TODO uncomment this after re-implement the case
-# Test Case - Garbage Collection
-#    Harbor API Test  ./tests/apitests/python/test_garbage_collection.py
+Test Case - Garbage Collection
+    Harbor API Test  ./tests/apitests/python/test_garbage_collection.py
 Test Case - Add Private Project Member and Check User Can See It
     Harbor API Test  ./tests/apitests/python/test_add_member_to_private_project.py
 Test Case - Delete a Repository of a Certain Project Created by Normal User
@@ -57,9 +57,8 @@ Test Case - Robot Account
     Harbor API Test  ./tests/apitests/python/test_robot_account.py
 Test Case - Sign A Image
     Harbor API Test  ./tests/apitests/python/test_sign_image.py
-# TODO uncomment this after making quota work with OCI registry
-# Test Case - Project Quota
-#    Harbor API Test  ./tests/apitests/python/test_project_quota.py
+Test Case - Project Quota
+   Harbor API Test  ./tests/apitests/python/test_project_quota.py
 Test Case - System Level CVE Whitelist
     Harbor API Test  ./tests/apitests/python/test_sys_cve_whitelists.py
 Test Case - Project Level CVE Whitelist
