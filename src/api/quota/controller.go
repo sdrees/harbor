@@ -53,11 +53,14 @@ type Controller interface {
 	// Get returns quota by id
 	Get(ctx context.Context, id int64) (*quota.Quota, error)
 
+	// GetByRef returns quota by reference object
+	GetByRef(ctx context.Context, reference, referenceID string) (*quota.Quota, error)
+
 	// IsEnabled returns true when quota enabled for reference object
 	IsEnabled(ctx context.Context, reference, referenceID string) (bool, error)
 
 	// Refresh refresh quota for the reference object
-	Refresh(ctx context.Context, reference, referenceID string) error
+	Refresh(ctx context.Context, reference, referenceID string, options ...Option) error
 
 	// Request request resources to run f
 	// Before run the function, it reserves the resources,
@@ -69,14 +72,12 @@ type Controller interface {
 // NewController creates an instance of the default quota controller
 func NewController() Controller {
 	return &controller{
-		logPrefix:          "[controller][quota]",
 		reservedExpiration: defaultReservedExpiration,
 		quotaMgr:           quota.Mgr,
 	}
 }
 
 type controller struct {
-	logPrefix          string
 	reservedExpiration time.Duration
 
 	quotaMgr quota.Manager
@@ -94,8 +95,12 @@ func (c *controller) Get(ctx context.Context, id int64) (*quota.Quota, error) {
 	return c.quotaMgr.Get(ctx, id)
 }
 
+func (c *controller) GetByRef(ctx context.Context, reference, referenceID string) (*quota.Quota, error) {
+	return c.quotaMgr.GetByRef(ctx, reference, referenceID)
+}
+
 func (c *controller) IsEnabled(ctx context.Context, reference, referenceID string) (bool, error) {
-	d, err := quotaDriver(ctx, reference, referenceID)
+	d, err := Driver(ctx, reference)
 	if err != nil {
 		return false, err
 	}
@@ -139,7 +144,7 @@ func (c *controller) setReservedResources(ctx context.Context, reference, refere
 
 func (c *controller) reserveResources(ctx context.Context, reference, referenceID string, resources types.ResourceList) error {
 	reserve := func(ctx context.Context) error {
-		q, err := c.quotaMgr.GetForUpdate(ctx, reference, referenceID)
+		q, err := c.quotaMgr.GetByRefForUpdate(ctx, reference, referenceID)
 		if err != nil {
 			return err
 		}
@@ -156,19 +161,19 @@ func (c *controller) reserveResources(ctx context.Context, reference, referenceI
 
 		reserved, err := c.getReservedResources(ctx, reference, referenceID)
 		if err != nil {
-			log.Errorf("failed to get reserved resources for %s %s, error: %v", reference, referenceID, err)
+			log.G(ctx).Errorf("failed to get reserved resources for %s %s, error: %v", reference, referenceID, err)
 			return err
 		}
 
 		newReserved := types.Add(reserved, resources)
 
 		newUsed := types.Add(used, newReserved)
-		if err := quota.IsSafe(hardLimits, used, newUsed); err != nil {
+		if err := quota.IsSafe(hardLimits, used, newUsed, false); err != nil {
 			return ierror.DeniedError(nil).WithMessage("Quota exceeded when processing the request of %v", err)
 		}
 
 		if err := c.setReservedResources(ctx, reference, referenceID, newReserved); err != nil {
-			log.Errorf("failed to set reserved resources for %s %s, error: %v", reference, referenceID, err)
+			log.G(ctx).Errorf("failed to set reserved resources for %s %s, error: %v", reference, referenceID, err)
 			return err
 		}
 
@@ -180,13 +185,13 @@ func (c *controller) reserveResources(ctx context.Context, reference, referenceI
 
 func (c *controller) unreserveResources(ctx context.Context, reference, referenceID string, resources types.ResourceList) error {
 	unreserve := func(ctx context.Context) error {
-		if _, err := c.quotaMgr.GetForUpdate(ctx, reference, referenceID); err != nil {
+		if _, err := c.quotaMgr.GetByRefForUpdate(ctx, reference, referenceID); err != nil {
 			return err
 		}
 
 		reserved, err := c.getReservedResources(ctx, reference, referenceID)
 		if err != nil {
-			log.Errorf("failed to get reserved resources for %s %s, error: %v", reference, referenceID, err)
+			log.G(ctx).Errorf("failed to get reserved resources for %s %s, error: %v", reference, referenceID, err)
 			return err
 		}
 
@@ -197,7 +202,7 @@ func (c *controller) unreserveResources(ctx context.Context, reference, referenc
 		}
 
 		if err := c.setReservedResources(ctx, reference, referenceID, newReserved); err != nil {
-			log.Errorf("failed to set reserved resources for %s %s, error: %v", reference, referenceID, err)
+			log.G(ctx).Errorf("failed to set reserved resources for %s %s, error: %v", reference, referenceID, err)
 			return err
 		}
 
@@ -207,14 +212,16 @@ func (c *controller) unreserveResources(ctx context.Context, reference, referenc
 	return orm.WithTransaction(unreserve)(ctx)
 }
 
-func (c *controller) Refresh(ctx context.Context, reference, referenceID string) error {
-	driver, err := quotaDriver(ctx, reference, referenceID)
+func (c *controller) Refresh(ctx context.Context, reference, referenceID string, options ...Option) error {
+	driver, err := Driver(ctx, reference)
 	if err != nil {
 		return err
 	}
 
+	opts := newOptions(options...)
+
 	refresh := func(ctx context.Context) error {
-		q, err := c.quotaMgr.GetForUpdate(ctx, reference, referenceID)
+		q, err := c.quotaMgr.GetByRefForUpdate(ctx, reference, referenceID)
 		if err != nil {
 			return err
 		}
@@ -231,7 +238,7 @@ func (c *controller) Refresh(ctx context.Context, reference, referenceID string)
 
 		newUsed, err := driver.CalculateUsage(ctx, referenceID)
 		if err != nil {
-			log.Errorf("failed to calculate quota usage for %s %s, error: %v", reference, referenceID, err)
+			log.G(ctx).Errorf("failed to calculate quota usage for %s %s, error: %v", reference, referenceID, err)
 			return err
 		}
 
@@ -240,7 +247,7 @@ func (c *controller) Refresh(ctx context.Context, reference, referenceID string)
 			return fmt.Errorf("quota usage is negative for resource(s): %s", quota.PrettyPrintResourceNames(negativeUsed))
 		}
 
-		if err := quota.IsSafe(hardLimits, used, newUsed); err != nil {
+		if err := quota.IsSafe(hardLimits, used, newUsed, opts.IgnoreLimitation); err != nil {
 			return err
 		}
 
@@ -266,7 +273,7 @@ func (c *controller) Request(ctx context.Context, reference, referenceID string,
 		if err := c.unreserveResources(ctx, reference, referenceID, resources); err != nil {
 			// ignore this error because reserved resources will be expired
 			// when no actions on the key of the reserved resources in redis during sometimes
-			log.Warningf("unreserve resources %s for %s %s failed, error: %v", resources.String(), reference, referenceID, err)
+			log.G(ctx).Warningf("unreserve resources %s for %s %s failed, error: %v", resources.String(), reference, referenceID, err)
 		}
 	}()
 
@@ -277,7 +284,8 @@ func (c *controller) Request(ctx context.Context, reference, referenceID string,
 	return c.Refresh(ctx, reference, referenceID)
 }
 
-func quotaDriver(ctx context.Context, reference, referenceID string) (driver.Driver, error) {
+// Driver returns quota driver for the reference
+func Driver(ctx context.Context, reference string) (driver.Driver, error) {
 	d, ok := driver.Get(reference)
 	if !ok {
 		return nil, fmt.Errorf("quota not support for %s", reference)

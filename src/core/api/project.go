@@ -16,7 +16,13 @@ package api
 
 import (
 	"fmt"
-	"github.com/goharbor/harbor/src/api/event"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/goharbor/harbor/src/api/event/metadata"
 	"github.com/goharbor/harbor/src/common"
 	"github.com/goharbor/harbor/src/common/dao"
 	"github.com/goharbor/harbor/src/common/dao/project"
@@ -31,11 +37,6 @@ import (
 	"github.com/goharbor/harbor/src/pkg/scan/vuln"
 	"github.com/goharbor/harbor/src/pkg/types"
 	"github.com/pkg/errors"
-	"net/http"
-	"regexp"
-	"strconv"
-	"strings"
-	"sync"
 )
 
 type deletableResp struct {
@@ -212,9 +213,10 @@ func (p *ProjectAPI) Post() {
 	}
 
 	// fire event
-	evt.BuildAndPublish(&event.CreateProjectEventMetadata{
-		Project:  pro.Name,
-		Operator: owner,
+	evt.BuildAndPublish(&metadata.CreateProjectEventMetadata{
+		ProjectID: projectID,
+		Project:   pro.Name,
+		Operator:  owner,
 	})
 
 	p.Redirect(http.StatusCreated, strconv.FormatInt(projectID, 10))
@@ -294,9 +296,10 @@ func (p *ProjectAPI) Delete() {
 	}
 
 	// fire event
-	evt.BuildAndPublish(&event.DeleteProjectEventMetadata{
-		Project:  p.project.Name,
-		Operator: p.SecurityCtx.GetUsername(),
+	evt.BuildAndPublish(&metadata.DeleteProjectEventMetadata{
+		ProjectID: p.project.ProjectID,
+		Project:   p.project.Name,
+		Operator:  p.SecurityCtx.GetUsername(),
 	})
 }
 
@@ -657,6 +660,7 @@ func getProjectQuotaSummary(projectID int64, summary *models.ProjectSummary) {
 
 	quota := quotas[0]
 
+	summary.Quota = &models.QuotaSummary{}
 	summary.Quota.Hard, _ = types.NewResourceList(quota.Hard)
 	summary.Quota.Used, _ = types.NewResourceList(quota.Used)
 }

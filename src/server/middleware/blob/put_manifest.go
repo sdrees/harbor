@@ -15,11 +15,9 @@
 package blob
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/docker/distribution/manifest/schema2"
 	"github.com/goharbor/harbor/src/common/utils/log"
 	"github.com/goharbor/harbor/src/pkg/distribution"
 	"github.com/goharbor/harbor/src/server/middleware"
@@ -40,12 +38,13 @@ func PutManifestMiddleware() func(http.Handler) http.Handler {
 			return nil
 		}
 
-		logPrefix := fmt.Sprintf("[middleware][%s][blob]", r.URL.Path)
-
 		ctx := r.Context()
+
+		logger := log.G(ctx).WithFields(log.Fields{"middleware": "blob"})
+
 		p, err := projectController.GetByName(ctx, distribution.ParseProjectName(r.URL.Path))
 		if err != nil {
-			log.Errorf("%s: get project failed, error: %v", logPrefix, err)
+			logger.Errorf("get project failed, error: %v", err)
 			return err
 		}
 
@@ -57,33 +56,32 @@ func PutManifestMiddleware() func(http.Handler) http.Handler {
 		contentType := r.Header.Get("Content-Type")
 		manifest, descriptor, err := distribution.UnmarshalManifest(contentType, body)
 		if err != nil {
-			log.Errorf("%s: unmarshal manifest failed, error: %v", logPrefix, err)
+			logger.Errorf("unmarshal manifest failed, error: %v", err)
 			return err
 		}
 
 		// sync blobs
 		if err := blobController.Sync(ctx, manifest.References()); err != nil {
-			log.Errorf("%s: sync missing blobs from manifest %s failed, error: %c", logPrefix, descriptor.Digest.String(), err)
+			logger.Errorf("sync missing blobs from manifest %s failed, error: %c", descriptor.Digest.String(), err)
 			return err
 		}
 
-		for _, digest := range findForeignBlobDigests(manifest) {
-			if err := blobController.AssociateWithProjectByDigest(ctx, digest, p.ProjectID); err != nil {
+		// NOTE: associate all blobs with project because the already exist associations may cleanup by others
+		for _, reference := range manifest.References() {
+			if err := blobController.AssociateWithProjectByDigest(ctx, reference.Digest.String(), p.ProjectID); err != nil {
 				return err
 			}
 		}
 
-		artifactDigest := descriptor.Digest.String()
-
 		// ensure Blob for the manifest
-		blobID, err := blobController.Ensure(ctx, artifactDigest, contentType, descriptor.Size)
+		blobID, err := blobController.Ensure(ctx, descriptor.Digest.String(), contentType, descriptor.Size)
 		if err != nil {
-			log.Errorf("%s: ensure blob %s failed, error: %v", logPrefix, descriptor.Digest, err)
+			logger.Errorf("ensure blob %s failed, error: %v", descriptor.Digest.String(), err)
 			return err
 		}
 
 		if err := blobController.AssociateWithProjectByID(ctx, blobID, p.ProjectID); err != nil {
-			log.Errorf("%s: associate manifest with artifact %s failed, error: %v", logPrefix, descriptor.Digest, err)
+			logger.Errorf("associate manifest with artifact %s failed, error: %v", descriptor.Digest.String(), err)
 			return err
 		}
 
@@ -93,8 +91,8 @@ func PutManifestMiddleware() func(http.Handler) http.Handler {
 		}
 
 		// associate blobs of the manifest with artifact
-		if err := blobController.AssociateWithArtifact(ctx, blobDigests, artifactDigest); err != nil {
-			log.Errorf("%s: associate blobs with artifact %s failed, error: %v", logPrefix, descriptor.Digest, err)
+		if err := blobController.AssociateWithArtifact(ctx, blobDigests, descriptor.Digest.String()); err != nil {
+			logger.Errorf("associate blobs with artifact %s failed, error: %v", descriptor.Digest.String(), err)
 			return err
 		}
 
@@ -104,18 +102,4 @@ func PutManifestMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return alice.New(before, after).Then(next)
 	}
-}
-
-func isForeign(d *distribution.Descriptor) bool {
-	return d.MediaType == schema2.MediaTypeForeignLayer
-}
-
-func findForeignBlobDigests(manifest distribution.Manifest) []string {
-	var digests []string
-	for _, reference := range manifest.References() {
-		if isForeign(&reference) {
-			digests = append(digests, reference.Digest.String())
-		}
-	}
-	return digests
 }

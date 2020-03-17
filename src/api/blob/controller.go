@@ -80,14 +80,12 @@ type Controller interface {
 // NewController creates an instance of the default repository controller
 func NewController() Controller {
 	return &controller{
-		blobMgr:   blob.Mgr,
-		logPrefix: "[controller][blob]",
+		blobMgr: blob.Mgr,
 	}
 }
 
 type controller struct {
-	blobMgr   blob.Manager
-	logPrefix string
+	blobMgr blob.Manager
 }
 
 func (c *controller) AssociateWithArtifact(ctx context.Context, blobDigests []string, artifactDigest string) error {
@@ -97,7 +95,7 @@ func (c *controller) AssociateWithArtifact(ctx context.Context, blobDigests []st
 	}
 
 	if exist {
-		log.Infof("%s: artifact digest %s already exist, skip to associate blobs with the artifact", c.logPrefix, artifactDigest)
+		log.G(ctx).Infof("artifact digest %s already exist, skip to associate blobs with the artifact", artifactDigest)
 		return nil
 	}
 
@@ -181,14 +179,14 @@ func (c *controller) FindMissingAssociationsForProject(ctx context.Context, proj
 		return nil, nil
 	}
 
-	associated := make(map[int64]bool, len(associatedBlobs))
+	associated := make(map[string]bool, len(associatedBlobs))
 	for _, blob := range associatedBlobs {
-		associated[blob.ID] = true
+		associated[blob.Digest] = true
 	}
 
 	var results []*models.Blob
 	for _, blob := range blobs {
-		if !associated[blob.ID] {
+		if !associated[blob.Digest] {
 			results = append(results, blob)
 		}
 	}
@@ -263,7 +261,7 @@ func (c *controller) Sync(ctx context.Context, references []distribution.Descrip
 		orm.WithTransaction(func(ctx context.Context) error {
 			for _, blob := range updating {
 				if err := c.blobMgr.Update(ctx, blob); err != nil {
-					log.Warningf("Failed to update blob %s, error: %v", blob.Digest, err)
+					log.G(ctx).Warningf("Failed to update blob %s, error: %v", blob.Digest, err)
 					return err
 				}
 			}

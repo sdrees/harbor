@@ -15,7 +15,6 @@
 package quota
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -23,6 +22,7 @@ import (
 	"github.com/goharbor/harbor/src/api/blob"
 	"github.com/goharbor/harbor/src/common/utils/log"
 	"github.com/goharbor/harbor/src/internal"
+	"github.com/goharbor/harbor/src/pkg/blob/models"
 	"github.com/goharbor/harbor/src/pkg/distribution"
 	"github.com/goharbor/harbor/src/pkg/types"
 )
@@ -36,44 +36,60 @@ func PutManifestMiddleware() func(http.Handler) http.Handler {
 }
 
 var (
-	parseManifestDigestAndSize = func(r *http.Request) (string, int64, error) {
+	unmarshalManifest = func(r *http.Request) (distribution.Manifest, distribution.Descriptor, error) {
 		internal.NopCloseRequest(r)
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			return "", 0, err
+			return nil, distribution.Descriptor{}, err
 		}
 
 		contentType := r.Header.Get("Content-Type")
-		_, descriptor, err := distribution.UnmarshalManifest(contentType, body)
-		if err != nil {
-
-			return "", 0, err
-		}
-
-		return descriptor.Digest.String(), descriptor.Size, nil
+		return distribution.UnmarshalManifest(contentType, body)
 	}
 )
 
 func putManifestResources(r *http.Request, reference, referenceID string) (types.ResourceList, error) {
-	logPrefix := fmt.Sprintf("[middleware][%s][quota]", r.URL.Path)
+	logger := log.G(r.Context()).WithFields(log.Fields{"middleware": "quota", "action": "request", "url": r.URL.Path})
 
 	projectID, _ := strconv.ParseInt(referenceID, 10, 64)
 
-	digest, size, err := parseManifestDigestAndSize(r)
+	manifest, descriptor, err := unmarshalManifest(r)
 	if err != nil {
-		log.Errorf("%s: unmarshal manifest failed, error: %v", logPrefix, err)
+		logger.Errorf("unmarshal manifest failed, error: %v", err)
 		return nil, err
 	}
 
-	exist, err := blobController.Exist(r.Context(), digest, blob.IsAssociatedWithProject(projectID))
+	exist, err := blobController.Exist(r.Context(), descriptor.Digest.String(), blob.IsAssociatedWithProject(projectID))
 	if err != nil {
-		log.Errorf("%s: check manifest %s is associated with project failed, error: %v", logPrefix, digest, err)
+		logger.Errorf("check manifest %s is associated with project failed, error: %v", descriptor.Digest.String(), err)
 		return nil, err
 	}
 
 	if exist {
 		return nil, nil
+	}
+
+	size := descriptor.Size
+
+	var blobs []*models.Blob
+	for _, reference := range manifest.References() {
+		blobs = append(blobs, &models.Blob{
+			Digest:      reference.Digest.String(),
+			Size:        reference.Size,
+			ContentType: reference.MediaType,
+		})
+	}
+
+	missing, err := blobController.FindMissingAssociationsForProject(r.Context(), projectID, blobs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, m := range missing {
+		if !m.IsForeignLayer() {
+			size += m.Size
+		}
 	}
 
 	return types.ResourceList{types.ResourceCount: 1, types.ResourceStorage: size}, nil

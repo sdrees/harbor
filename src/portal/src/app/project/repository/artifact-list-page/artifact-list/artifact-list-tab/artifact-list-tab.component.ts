@@ -30,10 +30,8 @@ import { ClrLoadingState, ClrDatagridStateInterface, ClrDatagridComparatorInterf
 import { HttpParams } from "@angular/common/http";
 import { ActivatedRoute, Router } from "@angular/router";
 import {
-  ArtifactClickEvent,
-  Comparator, Label, LabelService, ProjectService,
-  RetagService, ScanningResultService,
-  State, Tag,
+  Comparator, Label, LabelService, ScanningResultService,
+  State,
   UserPermissionService, USERSTATICPERMISSION, VulnerabilitySummary
 } from "../../../../../../lib/services";
 import {
@@ -61,7 +59,7 @@ import {
 } from "../../../../../../lib/entities/shared.const";
 import { operateChanges, OperateInfo, OperationState } from "../../../../../../lib/components/operation/operate";
 import { errorHandler } from "../../../../../../lib/utils/shared/shared.utils";
-import { ArtifactFront as Artifact, mutipleFilter } from "../../../artifact/artifact";
+import { ArtifactFront as Artifact, mutipleFilter, artifactImages, ArtifactFront } from "../../../artifact/artifact";
 import { Project } from "../../../../project";
 import { ArtifactService as NewArtifactService } from "../../../../../../../ng-swagger-gen/services/artifact.service";
 import { ADDITIONS } from "../../../artifact/artifact-additions/models";
@@ -89,7 +87,6 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   @Input() registryUrl: string;
   @Input() withNotary: boolean;
   @Input() withAdmiral: boolean;
-  tags: Tag[];
   artifactList: Artifact[] = [];
   availableTime = AVAILABLE_TIME;
   showTagManifestOpened: boolean;
@@ -144,7 +141,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   pageSize: number = DEFAULT_PAGE_SIZE;
   currentPage = 1;
   totalCount = 0;
-  currentState: State;
+  currentState: ClrDatagridStateInterface;
 
   hasAddLabelImagePermission: boolean;
   hasRetagImagePermission: boolean;
@@ -163,7 +160,8 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   mutipleFilter = clone(mutipleFilter);
   filterByType: string = this.mutipleFilter[0].filterBy;
   openSelectFilterPiece = false;
-
+  // could Pagination filter
+  filters: string[];
   constructor(
     private errorHandlerService: ErrorHandler,
     private userPermissionService: UserPermissionService,
@@ -282,32 +280,16 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
     this.lastFilteredTagName = filterWords;
     this.currentPage = 1;
 
-    let st: State = this.currentState;
+    let st: ClrDatagridStateInterface = this.currentState;
     if (!st) {
       st = { page: {} };
     }
     st.page.size = this.pageSize;
     st.page.from = 0;
     st.page.to = this.pageSize - 1;
-
-    st.filters = [{ property: this.filterByType, value: this.lastFilteredTagName }];
-    this.clrLoad(st);
-  }
-  doSearchArtifactNames(artifactName: string) {
-    this.lastFilteredTagName = artifactName;
-    this.currentPage = 1;
-
-    let st: State = this.currentState;
-    if (!st) {
-      st = { page: {} };
-    }
-    st.page.size = this.pageSize;
-    st.page.from = 0;
-    st.page.to = this.pageSize - 1;
-    st.filters = [{ property: this.filterByType, value: this.lastFilteredTagName }];
-    let selectedLab = this.imageFilterLabels.find(label => label.iconsShow === true);
-    if (selectedLab) {
-      st.filters.push({ property: this.filterByType, value: selectedLab.label.id });
+    this.filters = [];
+    if (this.lastFilteredTagName) {
+      this.filters.push(`${this.filterByType}=~${this.lastFilteredTagName}`);
     }
     this.clrLoad(st);
   }
@@ -345,10 +327,12 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
       if (sortBy) {
         params.sort = sortBy;
       }
-      if (state.filters && state.filters.length) {
-        state.filters.forEach(item => {
-          params[item.property] = item.value;
+      if (this.filters && this.filters.length) {
+        let q = "";
+        this.filters.forEach(item => {
+          q += item;
         });
+        params.q = encodeURIComponent(q);
       }
       if (this.artifactDigest) {
         const artifactParam: NewArtifactService.GetArtifactParams = {
@@ -385,6 +369,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
             })).subscribe(artifacts => {
               this.artifactList = artifacts;
               this.getArtifactAnnotationsArray(this.artifactList);
+              this.getArtifactIcon(this.artifactList);
             }, error => {
               this.errorHandlerService.error(error);
             });
@@ -414,6 +399,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
             }
             this.artifactList = res.body;
             this.getArtifactAnnotationsArray(this.artifactList);
+            this.getArtifactIcon(this.artifactList);
           }, error => {
             // error
             this.errorHandlerService.error(error);
@@ -422,7 +408,15 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   }
 
   refresh() {
-    this.doSearchArtifactNames(this.lastFilteredTagName);
+    this.currentPage = 1;
+    let st: ClrDatagridStateInterface = this.currentState;
+    if (!st) {
+      st = { page: {} };
+      st.page.size = this.pageSize;
+      st.page.from = 0;
+      st.page.to = this.pageSize - 1;
+    }
+    this.clrLoad(st);
   }
   getArtifactAnnotationsArray(artifactList: Artifact[]) {
     artifactList.forEach(artifact => {
@@ -579,18 +573,15 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
 
     // reload data
     this.currentPage = 1;
-    let st: State = this.currentState;
+    let st: ClrDatagridStateInterface = this.currentState;
     if (!st) {
       st = { page: {} };
     }
     st.page.size = this.pageSize;
     st.page.from = 0;
     st.page.to = this.pageSize - 1;
-    if (this.lastFilteredTagName) {
-      st.filters = [{ property: 'name', value: this.lastFilteredTagName }, { property: 'labels.id', value: labelId }];
-    } else {
-      st.filters = [{ property: 'labels.id', value: labelId }];
-    }
+
+    this.filters = [`${this.filterByType}=(${labelId})`];
 
     this.clrLoad(st);
   }
@@ -604,18 +595,15 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
 
     // reload data
     this.currentPage = 1;
-    let st: State = this.currentState;
+    let st: ClrDatagridStateInterface = this.currentState;
     if (!st) {
       st = { page: {} };
     }
     st.page.size = this.pageSize;
     st.page.from = 0;
     st.page.to = this.pageSize - 1;
-    if (this.lastFilteredTagName) {
-      st.filters = [{ property: 'name', value: this.lastFilteredTagName }];
-    } else {
-      st.filters = [];
-    }
+
+    this.filters = [];
     this.clrLoad(st);
   }
 
@@ -920,7 +908,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   }
   selectFilterType() {
     this.lastFilteredTagName = '';
-    if (this.filterByType === 'label.id') {
+    if (this.filterByType === 'labels') {
       this.openLabelFilterPanel = true;
       this.openLabelFilterPiece = true;
     } else {
@@ -931,25 +919,46 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
           data.iconsShow = false;
       });
     }
-    this.doSearchArtifactNames("");
-  }
-
-  selectFilter(showItem: string, filterItem: string) {
-    this.lastFilteredTagName = filterItem;
     this.currentPage = 1;
-
-    let st: State = this.currentState;
+    let st: ClrDatagridStateInterface = this.currentState;
     if (!st) {
       st = { page: {} };
     }
     st.page.size = this.pageSize;
     st.page.from = 0;
     st.page.to = this.pageSize - 1;
-    st.filters = [{ property: this.filterByType, value: filterItem }];
+    this.filters = [];
+    this.clrLoad(st);
+  }
+
+  selectFilter(showItem: string, filterItem: string) {
+    this.lastFilteredTagName = filterItem;
+    this.currentPage = 1;
+
+    let st: ClrDatagridStateInterface = this.currentState;
+    if (!st) {
+      st = { page: {} };
+    }
+    st.page.size = this.pageSize;
+    st.page.from = 0;
+    st.page.to = this.pageSize - 1;
+    this.filters = [];
+    if (filterItem) {
+      this.filters.push(`${this.filterByType}=${filterItem}`);
+    }
 
     this.clrLoad(st);
   }
   get isFilterReadonly() {
-    return this.filterByType === 'label.id' ? 'readonly' : null;
+    return this.filterByType === 'labels' ? 'readonly' : null;
+  }
+  getArtifactIcon(artifacts: ArtifactFront[]) {
+    for (const artifact of artifacts) {
+      if (artifactImages.some(image => image === artifact.type)) {
+        artifact.showImage = 'images/artifact-' + artifact.type.toLowerCase() + '.svg';
+      } else {
+        artifact.showImage = 'images/artifact-default.svg';
+      }
+    }
   }
 }
