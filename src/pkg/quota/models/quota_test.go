@@ -12,32 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package models
 
 import (
-	"crypto/tls"
-	"net/http"
+	"testing"
+
+	"github.com/goharbor/harbor/src/pkg/types"
+	"github.com/stretchr/testify/assert"
 )
 
-var (
-	secureHTTPTransport = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: false,
-		},
-	}
-	insecureHTTPTransport = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	}
-)
+func TestGetWarningResources(t *testing.T) {
+	assert := assert.New(t)
 
-// GetHTTPTransport returns the HTTP transport based on insecure configuration
-func GetHTTPTransport(insecure ...bool) *http.Transport {
-	if len(insecure) > 0 && insecure[0] {
-		return insecureHTTPTransport
-	}
-	return secureHTTPTransport
+	q := Quota{}
+
+	q.SetHard(types.ResourceList{types.ResourceCount: 3})
+	q.SetUsed(types.ResourceList{types.ResourceCount: 3})
+
+	resources, err := q.GetWarningResources(85)
+	assert.Nil(err)
+	assert.Len(resources, 1)
 }
