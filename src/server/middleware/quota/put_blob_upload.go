@@ -18,8 +18,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/goharbor/harbor/src/api/blob"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/controller/blob"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/distribution"
 	"github.com/goharbor/harbor/src/pkg/types"
 )
@@ -42,6 +42,11 @@ func putBlobUploadResources(r *http.Request, reference, referenceID string) (typ
 	if err != nil {
 		logger.Errorf("get blob size failed, error: %v", err)
 		return nil, err
+	}
+
+	if size == 0 {
+		logger.Debug("blob size is 0")
+		return nil, nil
 	}
 
 	projectID, _ := strconv.ParseInt(referenceID, 10, 64)

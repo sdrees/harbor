@@ -7,9 +7,10 @@ import (
 	"sync"
 
 	"github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
 	"github.com/goharbor/harbor/src/core/config"
-	ierror "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/log"
 	serror "github.com/goharbor/harbor/src/server/error"
 	"github.com/goharbor/harbor/src/server/middleware"
 	"github.com/gorilla/csrf"
@@ -44,7 +45,7 @@ func attachToken(w http.ResponseWriter, r *http.Request) {
 
 func handleError(w http.ResponseWriter, r *http.Request) {
 	attachToken(w, r)
-	serror.SendError(w, ierror.New(csrf.FailureReason(r)).WithCode(ierror.ForbiddenCode))
+	serror.SendError(w, errors.New(csrf.FailureReason(r)).WithCode(errors.ForbiddenCode))
 	return
 }
 
@@ -78,14 +79,10 @@ func Middleware() func(handler http.Handler) http.Handler {
 // csrfSkipper makes sure only some of the uris accessed by non-UI client can skip the csrf check
 func csrfSkipper(req *http.Request) bool {
 	path := req.URL.Path
-	// We can check the cookie directly b/c the filter and controllerRegistry is executed after middleware, so no session
-	// cookie is added by beego.
-	_, err := req.Cookie(config.SessionCookieName)
-	hasSession := err == nil
 	if (strings.HasPrefix(path, "/v2/") ||
 		strings.HasPrefix(path, "/api/") ||
 		strings.HasPrefix(path, "/chartrepo/") ||
-		strings.HasPrefix(path, "/service/")) && !hasSession {
+		strings.HasPrefix(path, "/service/")) && !lib.GetCarrySession(req.Context()) {
 		return true
 	}
 	return false

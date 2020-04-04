@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import {
-  AfterViewInit,
   Component,
   ElementRef,
-  EventEmitter,
   Input, OnDestroy,
   OnInit,
-  Output,
   ViewChild,
 
 } from "@angular/core";
@@ -27,11 +24,9 @@ import { catchError, debounceTime, distinctUntilChanged, finalize, map } from 'r
 import { TranslateService } from "@ngx-translate/core";
 import { ClrLoadingState, ClrDatagridStateInterface, ClrDatagridComparatorInterface } from "@clr/angular";
 
-import { HttpParams } from "@angular/common/http";
 import { ActivatedRoute, Router } from "@angular/router";
 import {
   Comparator, Label, LabelService, ScanningResultService,
-  State,
   UserPermissionService, USERSTATICPERMISSION, VulnerabilitySummary
 } from "../../../../../../lib/services";
 import {
@@ -59,7 +54,7 @@ import {
 } from "../../../../../../lib/entities/shared.const";
 import { operateChanges, OperateInfo, OperationState } from "../../../../../../lib/components/operation/operate";
 import { errorHandler } from "../../../../../../lib/utils/shared/shared.utils";
-import { ArtifactFront as Artifact, mutipleFilter, artifactImages, ArtifactFront } from "../../../artifact/artifact";
+import { ArtifactFront as Artifact, mutipleFilter } from "../../../artifact/artifact";
 import { Project } from "../../../../project";
 import { ArtifactService as NewArtifactService } from "../../../../../../../ng-swagger-gen/services/artifact.service";
 import { ADDITIONS } from "../../../artifact/artifact-additions/models";
@@ -162,6 +157,10 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   openSelectFilterPiece = false;
   // could Pagination filter
   filters: string[];
+
+  scanFiinishArtifactLength: number = 0;
+  onScanArtifactsLength: number = 0;
+
   constructor(
     private errorHandlerService: ErrorHandler,
     private userPermissionService: UserPermissionService,
@@ -369,7 +368,6 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
             })).subscribe(artifacts => {
               this.artifactList = artifacts;
               this.getArtifactAnnotationsArray(this.artifactList);
-              this.getArtifactIcon(this.artifactList);
             }, error => {
               this.errorHandlerService.error(error);
             });
@@ -397,7 +395,6 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
             }
             this.artifactList = res.body;
             this.getArtifactAnnotationsArray(this.artifactList);
-            this.getArtifactIcon(this.artifactList);
           }, error => {
             // error
             this.errorHandlerService.error(error);
@@ -703,8 +700,8 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
       });
 
       let titleKey: string, summaryKey: string, content: string, buttons: ConfirmationButtons;
-      titleKey = "REPOSITORY.DELETION_TITLE_TAG";
-      summaryKey = "REPOSITORY.DELETION_SUMMARY_TAG";
+      titleKey = "REPOSITORY.DELETION_TITLE_ARTIFACT";
+      summaryKey = "REPOSITORY.DELETION_SUMMARY_ARTIFACT";
       buttons = ConfirmationButtons.DELETE_CANCEL;
       content = artifactNames.join(" , ");
       let message = new ConfirmationMessage(
@@ -731,6 +728,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
         forkJoin(...this.deleteArtifactobservableLists).subscribe((deleteResult) => {
           let deleteSuccessList = [];
           let deleteErrorList = [];
+          this.deleteArtifactobservableLists = [];
           deleteResult.forEach(result => {
             if (!result) {
               // delete success
@@ -739,9 +737,9 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
               deleteErrorList.push(result);
             }
           });
+          this.selectedRow = [];
           if (deleteSuccessList.length === deleteResult.length) {
             // all is success
-            this.selectedRow = [];
             let st: ClrDatagridStateInterface = { page: {from: 0, to: this.pageSize - 1, size: this.pageSize} };
             this.clrLoad(st);
           } else if (deleteErrorList.length === deleteResult.length) {
@@ -752,7 +750,6 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
             // some artifact delete success but it has error delete things
             this.errorHandlerService.error(deleteErrorList[deleteErrorList.length - 1].error);
             // if delete one success  refresh list
-            this.selectedRow = [];
             let st: ClrDatagridStateInterface = { page: {from: 0, to: this.pageSize - 1, size: this.pageSize} };
             this.clrLoad(st);
           }
@@ -851,9 +848,9 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   }
   getImagePermissionRule(projectId: number): void {
     const permissions = [
-      { resource: USERSTATICPERMISSION.REPOSITORY_TAG_LABEL.KEY, action: USERSTATICPERMISSION.REPOSITORY_TAG_LABEL.VALUE.CREATE },
+      { resource: USERSTATICPERMISSION.REPOSITORY_ARTIFACT_LABEL.KEY, action: USERSTATICPERMISSION.REPOSITORY_ARTIFACT_LABEL.VALUE.CREATE },
       { resource: USERSTATICPERMISSION.REPOSITORY.KEY, action: USERSTATICPERMISSION.REPOSITORY.VALUE.PULL },
-      { resource: USERSTATICPERMISSION.REPOSITORY_TAG.KEY, action: USERSTATICPERMISSION.REPOSITORY_TAG.VALUE.DELETE },
+      { resource: USERSTATICPERMISSION.ARTIFACT.KEY, action: USERSTATICPERMISSION.ARTIFACT.VALUE.DELETE },
       { resource: USERSTATICPERMISSION.REPOSITORY_TAG_SCAN_JOB.KEY, action: USERSTATICPERMISSION.REPOSITORY_TAG_SCAN_JOB.VALUE.CREATE },
     ];
     this.userPermissionService.hasProjectPermissions(this.projectId, permissions).subscribe((results: Array<boolean>) => {
@@ -871,10 +868,16 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   }
   // Trigger scan
   scanNow(): void {
-    if (this.selectedRow && this.selectedRow.length === 1) {
-      this.onSendingScanCommand = true;
-      this.channel.publishScanEvent(this.repoName + "/" + this.selectedRow[0].digest);
+    if (!this.selectedRow.length) {
+      return;
     }
+    this.scanFiinishArtifactLength = 0;
+    this.onScanArtifactsLength = this.selectedRow.length;
+    this.onSendingScanCommand = true;
+    this.selectedRow.forEach((data: any) => {
+      let digest = data.digest;
+      this.channel.publishScanEvent(this.repoName + "/" + digest);
+    });
   }
   selectedRowHasVul(): boolean {
     return !!(this.selectedRow
@@ -886,7 +889,11 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
     return !!(artifact && artifact.addition_links && artifact.addition_links[ADDITIONS.VULNERABILITIES]);
   }
   submitFinish(e: boolean) {
-    this.onSendingScanCommand = e;
+    this.scanFiinishArtifactLength += 1;
+    // all selected scan action has start
+    if (this.scanFiinishArtifactLength === this.onScanArtifactsLength) {
+      this.onSendingScanCommand = e;
+    }
   }
   // pull command
   onCpError($event: any): void {
@@ -970,14 +977,5 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   }
   get isFilterReadonly() {
     return this.filterByType === 'labels' ? 'readonly' : null;
-  }
-  getArtifactIcon(artifacts: ArtifactFront[]) {
-    for (const artifact of artifacts) {
-      if (artifactImages.some(image => image === artifact.type)) {
-        artifact.showImage = 'images/artifact-' + artifact.type.toLowerCase() + '.svg';
-      } else {
-        artifact.showImage = 'images/artifact-default.svg';
-      }
-    }
   }
 }

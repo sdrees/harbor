@@ -15,18 +15,17 @@
 package v2auth
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"sync"
 
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/security"
-	"github.com/goharbor/harbor/src/common/utils/log"
 	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/core/promgr"
-	"github.com/goharbor/harbor/src/internal"
-	ierror "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/log"
 	serror "github.com/goharbor/harbor/src/server/error"
 	"github.com/goharbor/harbor/src/server/middleware"
 )
@@ -36,16 +35,12 @@ type reqChecker struct {
 }
 
 func (rc *reqChecker) check(req *http.Request) error {
-	if rc.hasRegistryCred(req) {
-		// TODO: May consider implement a local authorizer for registry, more details see #10602
-		return nil
-	}
 	securityCtx, ok := security.FromContext(req.Context())
 	if !ok {
 		return fmt.Errorf("the security context got from request is nil")
 	}
-	none := internal.ArtifactInfo{}
-	if a := internal.GetArtifactInfo(req.Context()); a != none {
+	none := lib.ArtifactInfo{}
+	if a := lib.GetArtifactInfo(req.Context()); a != none {
 		action := getAction(req)
 		if action == "" {
 			return nil
@@ -86,12 +81,6 @@ func (rc *reqChecker) projectID(name string) (int64, error) {
 		return 0, fmt.Errorf("project not found, name: %s", name)
 	}
 	return p.ProjectID, nil
-}
-
-func (rc *reqChecker) hasRegistryCred(req *http.Request) bool {
-	u, p, ok := req.BasicAuth()
-	regUser, regPass := config.RegistryCredential()
-	return ok && u == regUser && p == regPass
 }
 
 func getAction(req *http.Request) rbac.Action {
@@ -135,7 +124,7 @@ func Middleware() func(http.Handler) http.Handler {
 				// the header is needed for "docker manifest" commands: https://github.com/docker/cli/issues/989
 				rw.Header().Set("Docker-Distribution-Api-Version", "registry/2.0")
 				rw.Header().Set("Www-Authenticate", `Basic realm="harbor"`)
-				serror.SendError(rw, ierror.UnauthorizedError(err).WithMessage(err.Error()))
+				serror.SendError(rw, errors.UnauthorizedError(err).WithMessage(err.Error()))
 				return
 			}
 			next.ServeHTTP(rw, req)

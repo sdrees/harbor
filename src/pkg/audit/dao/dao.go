@@ -16,10 +16,10 @@ package dao
 
 import (
 	"context"
-	ierror "github.com/goharbor/harbor/src/internal/error"
-	"github.com/goharbor/harbor/src/internal/orm"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/orm"
+	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/pkg/audit/model"
-	"github.com/goharbor/harbor/src/pkg/q"
 )
 
 // DAO is the data access object for audit log
@@ -62,10 +62,10 @@ func (d *dao) Count(ctx context.Context, query *q.Query) (int64, error) {
 func (d *dao) List(ctx context.Context, query *q.Query) ([]*model.AuditLog, error) {
 	audit := []*model.AuditLog{}
 	qs, err := orm.QuerySetter(ctx, &model.AuditLog{}, query)
-	qs = qs.OrderBy("-op_time")
 	if err != nil {
 		return nil, err
 	}
+	qs = qs.OrderBy("-op_time")
 	if _, err = qs.All(&audit); err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (d *dao) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 	if n == 0 {
-		return ierror.NotFoundError(nil).WithMessage("access %d not found", id)
+		return errors.NotFoundError(nil).WithMessage("access %d not found", id)
 	}
 	return nil
 }

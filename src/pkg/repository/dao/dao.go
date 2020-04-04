@@ -18,9 +18,9 @@ import (
 	"context"
 	o "github.com/astaxie/beego/orm"
 	"github.com/goharbor/harbor/src/common/models"
-	ierror "github.com/goharbor/harbor/src/internal/error"
-	"github.com/goharbor/harbor/src/internal/orm"
-	"github.com/goharbor/harbor/src/pkg/q"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/orm"
+	"github.com/goharbor/harbor/src/lib/q"
 	"time"
 )
 
@@ -68,6 +68,7 @@ func (d *dao) List(ctx context.Context, query *q.Query) ([]*models.RepoRecord, e
 	if err != nil {
 		return nil, err
 	}
+	qs = qs.OrderBy("-CreationTime", "RepositoryID")
 	if _, err = qs.All(&repositories); err != nil {
 		return nil, err
 	}
@@ -115,7 +116,7 @@ func (d *dao) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 	if n == 0 {
-		return ierror.NotFoundError(nil).WithMessage("repository %d not found", id)
+		return errors.NotFoundError(nil).WithMessage("repository %d not found", id)
 	}
 	return nil
 }
@@ -130,7 +131,7 @@ func (d *dao) Update(ctx context.Context, repository *models.RepoRecord, props .
 		return err
 	}
 	if n == 0 {
-		return ierror.NotFoundError(nil).WithMessage("repository %d not found", repository.RepositoryID)
+		return errors.NotFoundError(nil).WithMessage("repository %d not found", repository.RepositoryID)
 	}
 	return nil
 }
@@ -149,7 +150,7 @@ func (d *dao) AddPullCount(ctx context.Context, id int64) error {
 		return err
 	}
 	if num == 0 {
-		return ierror.New(nil).WithMessage("failed to increase repository pull count: %d", id)
+		return errors.New(nil).WithMessage("failed to increase repository pull count: %d", id)
 
 	}
 	return nil

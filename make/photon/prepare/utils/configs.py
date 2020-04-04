@@ -242,8 +242,9 @@ def parse_yaml_config(config_file_path, with_notary, with_clair, with_trivy, wit
 
     # Trivy configs, optional
     trivy_configs = configs.get("trivy") or {}
-    trivy_github_token = trivy_configs.get("github_token") or ''
-    config_dict['trivy_github_token'] = trivy_github_token
+    config_dict['trivy_github_token'] = trivy_configs.get("github_token") or ''
+    config_dict['trivy_skip_update'] = trivy_configs.get("skip_update") or False
+    config_dict['trivy_ignore_unfixed'] = trivy_configs.get("ignore_unfixed") or False
 
     # Chart configs
     chart_configs = configs.get("chart") or {}
@@ -401,8 +402,17 @@ def get_redis_configs(external_redis=None, with_clair=True, with_trivy=True):
     >>> get_redis_configs()['trivy_redis_url']
     'redis://redis:6379/5'
 
+    >>> get_redis_configs({'host': 'localhost', 'password': ''})['redis_password']
+    ''
+    >>> get_redis_configs({'host': 'localhost', 'password': None})['redis_password']
+    ''
+    >>> get_redis_configs({'host': 'localhost', 'password': None})['redis_url_reg']
+    'redis://localhost:6379/1'
+
     >>> get_redis_configs({'host': 'localhost', 'password': 'pass'})['external_redis']
     True
+    >>> get_redis_configs({'host': 'localhost', 'password': 'pass'})['redis_password']
+    'pass'
     >>> get_redis_configs({'host': 'localhost', 'password': 'pass'})['redis_url_reg']
     'redis://anonymous:pass@localhost:6379/1'
     >>> get_redis_configs({'host': 'localhost', 'password': 'pass'})['redis_url_js']
@@ -417,6 +427,7 @@ def get_redis_configs(external_redis=None, with_clair=True, with_trivy=True):
     >>> 'trivy_redis_url' not in get_redis_configs(with_trivy=False)
     True
     """
+    external_redis = external_redis or {}
 
     configs = dict(external_redis=bool(external_redis))
 
@@ -434,7 +445,7 @@ def get_redis_configs(external_redis=None, with_clair=True, with_trivy=True):
     }
 
     # overwriting existing keys by external_redis
-    redis.update(external_redis or {})
+    redis.update({key: value for (key, value) in external_redis.items() if value})
 
     configs['redis_host'] = redis['host']
     configs['redis_port'] = redis['port']

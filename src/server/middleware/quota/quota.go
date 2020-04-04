@@ -20,8 +20,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/goharbor/harbor/src/common/utils/log"
-	"github.com/goharbor/harbor/src/internal"
+	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/notification"
 	"github.com/goharbor/harbor/src/pkg/notifier/event"
 	"github.com/goharbor/harbor/src/pkg/quota"
@@ -83,7 +83,7 @@ func RequestMiddleware(config RequestConfig, skippers ...middleware.Skipper) fun
 
 		if !enabled {
 			// quota is disabled for the reference object, so direct to next handler
-			logger.Infof("quota is disabled for %s %s, so direct to next handler", reference, referenceID)
+			logger.Debugf("quota is disabled for %s %s, so direct to next handler", reference, referenceID)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -98,14 +98,14 @@ func RequestMiddleware(config RequestConfig, skippers ...middleware.Skipper) fun
 
 		if len(resources) == 0 {
 			// no resources request for this http request, so direct to next handler
-			logger.Info("no resources request for this http request, so direct to next handler")
+			logger.Debug("no resources request for this http request, so direct to next handler")
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		res, ok := w.(*internal.ResponseBuffer)
+		res, ok := w.(*lib.ResponseBuffer)
 		if !ok {
-			res = internal.NewResponseBuffer(w)
+			res = lib.NewResponseBuffer(w)
 			defer res.Flush()
 		}
 
@@ -206,7 +206,7 @@ func RefreshMiddleware(config RefreshConfig, skipers ...middleware.Skipper) func
 		}
 
 		if !enabled {
-			logger.Infof("quota is disabled for %s %s, so return directly", reference, referenceID)
+			logger.Debugf("quota is disabled for %s %s, so return directly", reference, referenceID)
 			return nil
 		}
 

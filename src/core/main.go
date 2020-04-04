@@ -24,13 +24,12 @@ import (
 
 	"github.com/astaxie/beego"
 	_ "github.com/astaxie/beego/session/redis"
-	_ "github.com/goharbor/harbor/src/api/event/handler"
 	"github.com/goharbor/harbor/src/common/dao"
 	common_http "github.com/goharbor/harbor/src/common/http"
 	"github.com/goharbor/harbor/src/common/job"
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	_ "github.com/goharbor/harbor/src/controller/event/handler"
 	"github.com/goharbor/harbor/src/core/api"
 	_ "github.com/goharbor/harbor/src/core/auth/authproxy"
 	_ "github.com/goharbor/harbor/src/core/auth/db"
@@ -38,9 +37,9 @@ import (
 	_ "github.com/goharbor/harbor/src/core/auth/oidc"
 	_ "github.com/goharbor/harbor/src/core/auth/uaa"
 	"github.com/goharbor/harbor/src/core/config"
-	"github.com/goharbor/harbor/src/core/filter"
 	"github.com/goharbor/harbor/src/core/middlewares"
 	"github.com/goharbor/harbor/src/core/service/token"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/migration"
 	"github.com/goharbor/harbor/src/pkg/notification"
 	_ "github.com/goharbor/harbor/src/pkg/notifier/topic"
@@ -155,10 +154,6 @@ func main() {
 
 	log.Info("initializing notification...")
 	notification.Init()
-
-	filter.Init()
-	beego.InsertFilter("/api/*", beego.BeforeStatic, filter.SessionCheck)
-	beego.InsertFilter("/*", beego.BeforeRouter, filter.SecurityFilter)
 
 	server.RegisterRoutes()
 

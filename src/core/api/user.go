@@ -27,9 +27,9 @@ import (
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/security/local"
 	"github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
 	"github.com/goharbor/harbor/src/core/config"
-	"github.com/goharbor/harbor/src/core/filter"
+	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/permission/types"
 )
 
@@ -324,7 +324,7 @@ func (ua *UserAPI) Post() {
 		return
 	}
 
-	if !ua.IsAdmin && !filter.ReqCarriesSession(ua.Ctx.Request) {
+	if !ua.IsAdmin && !lib.GetCarrySession(ua.Ctx.Request.Context()) {
 		ua.SendForbiddenError(errors.New("self-registration cannot be triggered via API"))
 		return
 	}

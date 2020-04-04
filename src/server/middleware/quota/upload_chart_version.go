@@ -20,8 +20,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/goharbor/harbor/src/common/api"
-	"github.com/goharbor/harbor/src/internal"
+	"github.com/goharbor/harbor/src/lib"
 	"github.com/goharbor/harbor/src/pkg/types"
 	"github.com/goharbor/harbor/src/server/middleware"
 	"k8s.io/helm/pkg/chartutil"
@@ -30,7 +29,7 @@ import (
 
 // UploadChartVersionMiddleware middleware to request count resources for the project
 func UploadChartVersionMiddleware() func(http.Handler) http.Handler {
-	chartsURL := fmt.Sprintf(`^/api/%s/chartrepo/(?P<namespace>[^?#]+)/charts/?$`, api.APIVersion)
+	chartsURL := `^/api/chartrepo/(?P<namespace>[^?#]+)/charts/?$`
 	skipper := middleware.NegativeSkipper(middleware.MethodAndPathSkipper(http.MethodPost, regexp.MustCompile(chartsURL)))
 
 	return RequestMiddleware(RequestConfig{
@@ -60,7 +59,7 @@ var (
 )
 
 func uploadChartVersionResources(r *http.Request, reference, referenceID string) (types.ResourceList, error) {
-	internal.NopCloseRequest(r)
+	lib.NopCloseRequest(r)
 
 	ct, err := parseChart(r)
 	if err != nil {

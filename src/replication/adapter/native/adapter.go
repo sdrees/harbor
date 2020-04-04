@@ -15,13 +15,12 @@
 package native
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
-	"github.com/goharbor/harbor/src/internal"
-	ierror "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/registry"
 	adp "github.com/goharbor/harbor/src/replication/adapter"
 	"github.com/goharbor/harbor/src/replication/filter"
@@ -78,7 +77,7 @@ func NewAdapter(reg *model.Registry) *Adapter {
 }
 
 // NewAdapterWithAuthorizer returns an instance of the Adapter with provided authorizer
-func NewAdapterWithAuthorizer(reg *model.Registry, authorizer internal.Authorizer) *Adapter {
+func NewAdapterWithAuthorizer(reg *model.Registry, authorizer lib.Authorizer) *Adapter {
 	return &Adapter{
 		registry: reg,
 		Client:   registry.NewClientWithAuthorizer(reg.URL, authorizer, reg.Insecure),
@@ -237,7 +236,7 @@ func (a *Adapter) PingSimple() error {
 	if err == nil {
 		return nil
 	}
-	if ierror.IsErr(err, ierror.UnAuthorizedCode) || ierror.IsErr(err, ierror.ForbiddenCode) {
+	if errors.IsErr(err, errors.UnAuthorizedCode) || errors.IsErr(err, errors.ForbiddenCode) {
 		return nil
 	}
 	return err

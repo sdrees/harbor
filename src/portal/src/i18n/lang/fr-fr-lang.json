@@ -385,7 +385,7 @@
         "ENABLE": "Enable",
         "DISABLE": "Disable",
         "NAME": "Name",
-        "TARGET": "Target",
+        "TARGET": "Endpoint URL",
         "EVENT_TYPES": "Event types",
         "DESCRIPTION": "Description",
         "NO_WEBHOOK": "No Webhook",
@@ -629,7 +629,7 @@
         "COPY_DIGEST_ID": "Copier le Résumé",
         "DELETE": "Supprimer",
         "NAME": "Nom",
-        "TAGS_COUNT": "Tags",
+        "TAGS": "Tags",
         "PLATFORM": "OS/ARCH",
         "ARTIFACT_TOOTIP": "Click this icon to enter the Artifact list of refer",
         "ARTIFACTS_COUNT": "Artifacts",
@@ -644,8 +644,10 @@
         "DELETION_TITLE_REPO_SIGNED": "Le Dépôt ne peut être supprimé",
         "DELETION_SUMMARY_REPO_SIGNED": "Le Dépôt '{{repoName}}' ne peut pas être supprimé parce que les images suivantes signées existent. \n{{signedImages}} \nVous devez retirer la signature de toutes les images signées avant de supprimer le dépôt !",
         "DELETION_SUMMARY_REPO": "Voulez-vous supprimer le dépôt {{repoName}} ?",
+        "DELETION_TITLE_ARTIFACT": "Confirm Artifact Deletion",
+        "DELETION_SUMMARY_ARTIFACT": "Do you want to delete artifact {{param}}? If you delete this artifact, all tags referenced by the digest will also be deleted.",
         "DELETION_TITLE_TAG": "Confirmer la suppression du Tag",
-        "DELETION_SUMMARY_TAG": "Voulez-vous supprimer le tag {{param}}? If you delete this tag, all other tags referenced by the same digest will also be deleted.",
+        "DELETION_SUMMARY_TAG": "Voulez-vous supprimer le tag {{param}}? ",
         "DELETION_TITLE_TAG_DENIED": "Un tag signé ne peut être supprimé",
         "DELETION_SUMMARY_TAG_DENIED": "La balise doit être supprimée du Résumé avant qu'elle ne puisse être supprimée. \nSupprimer du Résumé via cette commande: \n",
         "TAGS_NO_DELETE": "Upload/Delete is prohibited in read only mode.",
@@ -678,7 +680,7 @@
         "ADD_LABEL_TO_IMAGE": "Add labels to this image",
         "FILTER_BY_LABEL": "Filter images by label",
         "FILTER_ARTIFACT_BY_LABEL": "Filter actifact by label",
-        "ADD_LABELS": "Add labels",
+        "ADD_LABELS": "Add Labels",
         "RETAG": "Copy",
         "ACTION": "ACTION",
         "DEPLOY": "DEPLOY",
@@ -962,6 +964,7 @@
         "CHART": {
             "SCANNING_TIME": "Temps d'analyse complète :",
             "SCANNING_PERCENT": "Scan completed percent:",
+            "SCANNING_PERCENT_EXPLAIN": "Scan completed percentage is calculated as # of successfully scanned images / total number of images referenced within the image index.",
             "TOOLTIPS_TITLE": "{{totalVulnerability}} de {{totalPackages}} {{package}} ont des {{vulnerability}} connues.",
             "TOOLTIPS_TITLE_SINGULAR": "{{totalVulnerability}} de {{totalPackages}} {{package}} a des {{vulnerability}} connues.",
             "TOOLTIPS_TITLE_ZERO": "No recognizable vulnerability found"
@@ -995,7 +998,7 @@
         "FILTER_FOR_ARTIFACTS": "Filter Artifacts",
         "ADDITIONS": "Additions",
         "ANNOTATION": "Annotations",
-        "EXTRA_PROPERTIES": "Extra Attributes",
+        "OVERVIEW": "Overview",
         "IMAGE": "IMAGE",
         "CHART": "CHART",
         "CNAB": "CNAB",
@@ -1032,7 +1035,8 @@
         "OF": "of",
         "ITEMS": "items",
         "ADD_TAG": "ADD TAG",
-        "REMOVE_TAG": "REMOVE TAG"
+        "REMOVE_TAG": "REMOVE TAG",
+        "NAME_ALREADY_EXISTS": "Tag already exists under the repository"
     },
     "LABEL": {
         "LABEL": "Label",
@@ -1121,6 +1125,7 @@
     "UNKNOWN": "n. d.",
     "STATUS": "Status",
     "START_TIME": "Start Time",
+    "CREATION_TIME": "Creation Time",
     "UPDATE_TIME": "Update Time",
     "LOGS": "Logs",
     "PENDING": "Pending",
@@ -1368,6 +1373,7 @@
         "VIEW_DOC": "view documentation",
         "ALL_SCANNERS": "All scanners",
         "HELP_INFO_1": "The default scanner has been installed. To install other scanners refer to the ",
-        "HELP_INFO_2": "documentation."
+        "HELP_INFO_2": "documentation.",
+        "NO_DEFAULT_SCANNER": "No default scanner"
     }
 }

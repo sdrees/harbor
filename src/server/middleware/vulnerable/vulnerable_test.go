@@ -21,18 +21,18 @@ import (
 	"testing"
 
 	"github.com/docker/distribution/manifest/manifestlist"
-	"github.com/goharbor/harbor/src/api/artifact"
-	"github.com/goharbor/harbor/src/api/project"
-	"github.com/goharbor/harbor/src/api/scan"
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/security"
-	"github.com/goharbor/harbor/src/internal"
+	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/controller/project"
+	"github.com/goharbor/harbor/src/controller/scan"
+	"github.com/goharbor/harbor/src/lib"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
 	"github.com/goharbor/harbor/src/pkg/scan/vuln"
-	artifacttesting "github.com/goharbor/harbor/src/testing/api/artifact"
-	projecttesting "github.com/goharbor/harbor/src/testing/api/project"
-	scantesting "github.com/goharbor/harbor/src/testing/api/scan"
 	securitytesting "github.com/goharbor/harbor/src/testing/common/security"
+	artifacttesting "github.com/goharbor/harbor/src/testing/controller/artifact"
+	projecttesting "github.com/goharbor/harbor/src/testing/controller/project"
+	scantesting "github.com/goharbor/harbor/src/testing/controller/scan"
 	"github.com/goharbor/harbor/src/testing/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -109,14 +109,24 @@ func (suite *MiddlewareTestSuite) TearDownTest() {
 func (suite *MiddlewareTestSuite) makeRequest() *http.Request {
 	req := httptest.NewRequest("GET", "/v1/library/photon/manifests/2.0", nil)
 
-	info := internal.ArtifactInfo{
+	info := lib.ArtifactInfo{
 		Repository: "library/photon",
 		Reference:  "2.0",
 		Tag:        "2.0",
 		Digest:     "",
 	}
 
-	return req.WithContext(internal.WithArtifactInfo(req.Context(), info))
+	return req.WithContext(lib.WithArtifactInfo(req.Context(), info))
+}
+
+func (suite *MiddlewareTestSuite) TestNoArtifactInfo() {
+	mock.OnAnything(suite.artifactController, "GetByReference").Return(nil, fmt.Errorf("error"))
+
+	req := httptest.NewRequest("GET", "/v1/library/photon/manifests/2.0", nil)
+	rr := httptest.NewRecorder()
+
+	Middleware()(suite.next).ServeHTTP(rr, req)
+	suite.Equal(rr.Code, http.StatusInternalServerError)
 }
 
 func (suite *MiddlewareTestSuite) TestGetArtifactFailed() {
@@ -220,6 +230,24 @@ func (suite *MiddlewareTestSuite) TestArtifactNotScanned() {
 	suite.Equal(rr.Code, http.StatusPreconditionFailed)
 }
 
+func (suite *MiddlewareTestSuite) TestArtifactScanFailed() {
+	mock.OnAnything(suite.artifactController, "GetByReference").Return(suite.artifact, nil)
+	mock.OnAnything(suite.projectController, "Get").Return(suite.project, nil)
+	mock.OnAnything(suite.checker, "IsScannable").Return(true, nil)
+	mock.OnAnything(suite.scanController, "GetSummary").Return(map[string]interface{}{
+		v1.MimeTypeNativeReport: &vuln.NativeReportSummary{
+			ScanStatus:  "Error",
+			CVEBypassed: []string{"cve-2020"},
+		},
+	}, nil)
+
+	req := suite.makeRequest()
+	rr := httptest.NewRecorder()
+
+	Middleware()(suite.next).ServeHTTP(rr, req)
+	suite.Equal(rr.Code, http.StatusPreconditionFailed)
+}
+
 func (suite *MiddlewareTestSuite) TestGetSummaryFailed() {
 	mock.OnAnything(suite.artifactController, "GetByReference").Return(suite.artifact, nil)
 	mock.OnAnything(suite.projectController, "Get").Return(suite.project, nil)
@@ -233,13 +261,69 @@ func (suite *MiddlewareTestSuite) TestGetSummaryFailed() {
 	suite.Equal(rr.Code, http.StatusInternalServerError)
 }
 
+func (suite *MiddlewareTestSuite) TestBadSummary() {
+	mock.OnAnything(suite.artifactController, "GetByReference").Return(suite.artifact, nil)
+	mock.OnAnything(suite.projectController, "Get").Return(suite.project, nil)
+	mock.OnAnything(suite.checker, "IsScannable").Return(true, nil)
+	mock.OnAnything(suite.scanController, "GetSummary").Return(map[string]interface{}{
+		v1.MimeTypeNativeReport: "bad report",
+	}, nil)
+
+	req := suite.makeRequest()
+	rr := httptest.NewRecorder()
+
+	Middleware()(suite.next).ServeHTTP(rr, req)
+	suite.Equal(rr.Code, http.StatusInternalServerError)
+}
+
+func (suite *MiddlewareTestSuite) TestNoVulnerabilities() {
+	mock.OnAnything(suite.artifactController, "GetByReference").Return(suite.artifact, nil)
+	mock.OnAnything(suite.projectController, "Get").Return(suite.project, nil)
+	mock.OnAnything(suite.checker, "IsScannable").Return(true, nil)
+	mock.OnAnything(suite.scanController, "GetSummary").Return(map[string]interface{}{
+		v1.MimeTypeNativeReport: &vuln.NativeReportSummary{
+			ScanStatus:  "Success",
+			Severity:    vuln.Unknown,
+			CVEBypassed: []string{"cve-2020"},
+		},
+	}, nil)
+
+	req := suite.makeRequest()
+	rr := httptest.NewRecorder()
+
+	Middleware()(suite.next).ServeHTTP(rr, req)
+	suite.Equal(rr.Code, http.StatusOK)
+}
+
+func (suite *MiddlewareTestSuite) TestTotalVulnerabilitiesIsZero() {
+	mock.OnAnything(suite.artifactController, "GetByReference").Return(suite.artifact, nil)
+	mock.OnAnything(suite.projectController, "Get").Return(suite.project, nil)
+	mock.OnAnything(suite.checker, "IsScannable").Return(true, nil)
+	mock.OnAnything(suite.scanController, "GetSummary").Return(map[string]interface{}{
+		v1.MimeTypeNativeReport: &vuln.NativeReportSummary{
+			ScanStatus:  "Success",
+			Severity:    vuln.Unknown,
+			Summary:     &vuln.VulnerabilitySummary{Total: 0},
+			CVEBypassed: []string{"cve-2020"},
+		},
+	}, nil)
+
+	req := suite.makeRequest()
+	rr := httptest.NewRecorder()
+
+	Middleware()(suite.next).ServeHTTP(rr, req)
+	suite.Equal(rr.Code, http.StatusOK)
+}
+
 func (suite *MiddlewareTestSuite) TestAllowed() {
 	mock.OnAnything(suite.artifactController, "GetByReference").Return(suite.artifact, nil)
 	mock.OnAnything(suite.projectController, "Get").Return(suite.project, nil)
 	mock.OnAnything(suite.checker, "IsScannable").Return(true, nil)
 	mock.OnAnything(suite.scanController, "GetSummary").Return(map[string]interface{}{
 		v1.MimeTypeNativeReport: &vuln.NativeReportSummary{
+			ScanStatus:  "Success",
 			Severity:    vuln.Low,
+			Summary:     &vuln.VulnerabilitySummary{Total: 1},
 			CVEBypassed: []string{"cve-2020"},
 		},
 	}, nil)
@@ -257,7 +341,9 @@ func (suite *MiddlewareTestSuite) TestPrevented() {
 	mock.OnAnything(suite.checker, "IsScannable").Return(true, nil)
 	mock.OnAnything(suite.scanController, "GetSummary").Return(map[string]interface{}{
 		v1.MimeTypeNativeReport: &vuln.NativeReportSummary{
-			Severity: vuln.Critical,
+			ScanStatus: "Success",
+			Severity:   vuln.Critical,
+			Summary:    &vuln.VulnerabilitySummary{Total: 1},
 		},
 	}, nil)
 

@@ -312,7 +312,7 @@ Test Case - Delete Multi Repo
     Delete Success  hello-world  busybox
     Close Browser
 
-Test Case - Delete Multi Tag
+Test Case - Delete Multi Artifacts
     Init Chrome Driver
     ${d}=   Get Current Date    result_format=%m%s
     Sign In Harbor  ${HARBOR_URL}  user014  Test1@34
@@ -322,9 +322,9 @@ Test Case - Delete Multi Tag
     Go Into Project  project${d}
     Go Into Repo  redis
     @{tag_list}  Create List  3.2.10-alpine  4.0.7-alpine
-    Multi-delete object  ${tag_delete_btn}  @{tag_list}
+    Multi-delete Artifact  ${tag_delete_btn}  @{tag_list}
     # Verify
-    Delete Success  3.2.10-alpine  4.0.7-alpine
+    Delete Success  sha256:dd179737  sha256:28a85227
     Close Browser
 
 Test Case - Delete Repo on CardView
@@ -408,7 +408,7 @@ Test Case - Developer Operate Labels
     Retry Wait Until Page Not Contains Element  xpath=//a[contains(.,'Labels')]
     Close Browser
 
-Test Case - Retag A Image Tag
+Test Case - Copy A Image
     Init Chrome Driver
     ${random_num1}=   Get Current Date    result_format=%m%s
     ${random_num2}=   Evaluate  str(random.randint(1000,9999))  modules=random
@@ -422,7 +422,7 @@ Test Case - Retag A Image Tag
     Push Image With Tag  ${ip}  user028  Test1@34  project${random_num1}  redis  ${image_tag}
     Sleep  1
     Go Into Repo  project${random_num1}/redis
-    Retag Image  ${image_tag}  project${random_num1}${random_num2}  ${target_image_name}  ${target_tag_value}
+    Copy Image  ${image_tag}  project${random_num1}${random_num2}  ${target_image_name}
     Retry Wait Element Not Visible  ${repo_retag_confirm_dlg}
     Navigate To Projects
     Go Into Project  project${random_num1}${random_num2}
@@ -481,6 +481,26 @@ Test Case - Project Image And Chart Artifact Count Quotas Dispaly And Control
     Push image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project${d}  busybox
     Close Browser
 
+# Make sure image logstash was pushed to harbor for the 1st time, so GC will delete it.
+Test Case - Project Quotas Control Under GC
+    Init Chrome Driver
+    ${d}=  Get Current Date  result_format=%m%s
+    ${storage_quota}=  Set Variable  200
+    ${storage_quota_unit}=  Set Variable  MB
+    ${image_a}=  Set Variable  logstash
+    ${image_a_size}=    Set Variable    321.03MB
+    ${image_a_ver}=  Set Variable  6.8.3
+    Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
+    Capture Page Screenshot
+    Create An New Project  project${d}  storage_quota=${storage_quota}  storage_quota_unit=${storage_quota_unit}
+    Capture Page Screenshot
+    Cannot Push image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project${d}  ${image_a}:${image_a_ver}  err_msg=will exceed the configured upper limit of 200.0 MiB
+    Capture Page Screenshot
+    GC Now  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
+    @{param}  Create List  project${d}
+    Retry Keyword When Return Value Mismatch  Get Project Storage Quota Text From Project Quotas List  0Byte of ${storage_quota}${storage_quota_unit}  60  @{param}
+    Close Browser
+
 Test Case - Project Storage Quotas Dispaly And Control
     Init Chrome Driver
     ${d}=  Get Current Date  result_format=%m%s
@@ -510,7 +530,7 @@ Test Case - Project Storage Quotas Dispaly And Control
     Should Be Equal As Strings  ${storage_quota_ret}  ${image_a_size} of ${storage_quota}${storage_quota_unit}
     Close Browser
 
-Test Case - Project Quotas Control Under Retag
+Test Case - Project Quotas Control Under Copy
     Init Chrome Driver
     ${d}=  Get Current Date  result_format=%m%s
     ${count_quota}=  Set Variable  1
@@ -525,11 +545,11 @@ Test Case - Project Quotas Control Under Retag
     Push Image With Tag  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project_a_${d}  ${image_b}  tag=${image_b_ver}  tag1=${image_b_ver}
     Go Into Project  project_a_${d}
     Go Into Repo  project_a_${d}/${image_a}
-    Retag Image  ${image_a_ver}  project_b_${d}  ${image_a}  ${image_a_ver}
+    Copy Image  ${image_a_ver}  project_b_${d}  ${image_a}
     Retry Wait Element Not Visible  ${repo_retag_confirm_dlg}
     Go Into Project  project_a_${d}
     Go Into Repo  project_a_${d}/${image_b}
-    Retag Image  ${image_b_ver}  project_b_${d}  ${image_b}  ${image_b_ver}
+    Copy Image  ${image_b_ver}  project_b_${d}  ${image_b}
     Retry Wait Element Not Visible  ${repo_retag_confirm_dlg}
     Sleep  2
     Go Into Project  project_b_${d}
@@ -540,58 +560,19 @@ Test Case - Project Quotas Control Under Retag
     Capture Page Screenshot
     Close Browser
 
-Test Case - Project Quotas Control Under GC
-    Init Chrome Driver
-    ${d}=  Get Current Date  result_format=%m%s
-    ${storage_quota}=  Set Variable  200
-    ${storage_quota_unit}=  Set Variable  MB
-    ${image_a}=  Set Variable  logstash
-    ${image_a_size}=    Set Variable    321.03MB
-    ${image_a_ver}=  Set Variable  6.8.3
-    Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
-    Capture Page Screenshot
-    Create An New Project  project${d}  storage_quota=${storage_quota}  storage_quota_unit=${storage_quota_unit}
-    Capture Page Screenshot
-    Cannot Push image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project${d}  ${image_a}:${image_a_ver}  err_msg=will exceed the configured upper limit of 200.0 MiB
-    Capture Page Screenshot
-    GC Now  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
-    @{param}  Create List  project${d}
-    Retry Keyword When Return Value Mismatch  Get Project Storage Quota Text From Project Quotas List  0Byte of ${storage_quota}${storage_quota_unit}  60  @{param}
-    Close Browser
-
-Test Case - Create New Webhook
+Test Case - Webhook CRUD
     Init Chrome Driver
     ${d}=    Get Current Date    result_format=%m%s
     Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
     Create An New Project  project${d}
     Go Into Project  project${d}  has_image=${false}
     Switch To Project Webhooks
-    Create A New Webhook  ${HARBOR_URL}  auth_header=auth_header${d}
-    Close Browser
-
-Test Case - Update Webhook
-   Init Chrome Driver
-   ${d}=    Get Current Date    result_format=%m%s
-   Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
-   Create An New Project  project${d}
-   Go Into Project  project${d}  has_image=${false}
-   Switch To Project Webhooks
-   Create A New Webhook  ${HARBOR_URL}  auth_header=auth_header${d}
-   Sleep  3
-   ${d1}=    Get Current Date
-   Update A Webhook  101.17.109.20  auth_header=auth_header${d1}
-   Close Browser
-
-Test Case - Toggle Enable/Disable State of Webhook
-    Init Chrome Driver
-    ${d}=    Get Current Date    result_format=%m%s
-    Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
-    Create An New Project  project${d}
-    Go Into Project  project${d}  has_image=${false}
-    Switch To Project Webhooks
-    Create A New Webhook  ${HARBOR_URL}  auth_header=auth_header${d}
-    Sleep  3
-    Toggle Enable/Disable State of Same Webhook
+    # create more than one webhooks
+    Create A New Webhook   webhook${d}   https://test.com
+    Create A New Webhook   webhook2${d}   https://test2.com
+    Update A Webhook    webhook${d}  newWebhook${d}   https://new-test.com
+    Enable/Disable State of Same Webhook   newWebhook${d}
+    Delete A Webhook  newWebhook${d}
     Close Browser
 
 Test Case - Tag Retention
@@ -658,7 +639,7 @@ Test Case - Read Only Mode
     Push image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project${d}  busybox:latest
     Close Browser
 
-Test Case - Can Not Retag Image In ReadOnly Mode
+Test Case - Can Not Copy Image In ReadOnly Mode
     Init Chrome Driver
     ${random_num1}=   Get Current Date    result_format=%m%s
     ${random_num2}=   Evaluate  str(random.randint(1000,9999))  modules=random
@@ -673,7 +654,7 @@ Test Case - Can Not Retag Image In ReadOnly Mode
     Sleep  1
     Enable Read Only
     Go Into Repo  project${random_num1}/redis
-    Retag Image  ${image_tag}  project${random_num1}${random_num2}  ${target_image_name}  ${target_tag_value}
+    Copy Image  ${image_tag}  project${random_num1}${random_num2}  ${target_image_name}
     Retry Wait Element Not Visible  ${repo_retag_confirm_dlg}
     Navigate To Projects
     Go Into Project  project${random_num1}${random_num2}  has_image=${false}
@@ -682,4 +663,78 @@ Test Case - Can Not Retag Image In ReadOnly Mode
     Disable Read Only
     Close Browser
 
+Test Case - Push Docker Manifest Index and Display
+    Init Chrome Driver
+    ${d}=    Get Current Date    result_format=%m%s
+    ${image_a}=  Set Variable  hello-world
+    ${image_b}=  Set Variable  busybox
+    ${image_a_ver}=  Set Variable  latest
+    ${image_b_ver}=  Set Variable  latest
 
+    Sign In Harbor  ${HARBOR_URL}  user010  Test1@34
+    Create An New Project  test${d}
+
+    Push image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  test${d}  ${image_a}:${image_a_ver}
+    Go Into Project  test${d}
+    Wait Until Page Contains  test${d}/${image_a}
+
+    Push image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  test${d}  ${image_b}:${image_b_ver}
+    Go Into Project  test${d}
+    Wait Until Page Contains  test${d}/${image_b}
+
+    Docker Push Index  ${ip}  user010  Test1@34  ${ip}/test${d}/index${d}:index_tag${d}  ${ip}/test${d}/${image_a}:${image_a_ver}  ${ip}/test${d}/${image_b}:${image_b_ver}
+
+    Go Into Project  test${d}
+    Wait Until Page Contains  test${d}/index${d}
+
+    Go Into Repo  test${d}/index${d}
+    Wait Until Page Contains  index_tag${d}
+
+    Go Into Project  test${d}
+    Wait Until Page Contains  test${d}/index${d}
+    Go Into Repo  test${d}/index${d}
+    Retry Double Keywords When Error  Go Into Index  index_name=${null}  Page Should Contain Element  ${tag_table_column_os_arch}
+    Page Should Contain Element  ${artifact_rows}  limit=2
+
+Test Case - Push CNAB Bundle and Display
+    Init Chrome Driver
+    ${d}=    Get Current Date    result_format=%m%s
+
+    Sign In Harbor  ${HARBOR_URL}  user010  Test1@34
+    Create An New Project  test${d}
+
+    ${target}=  Set Variable  ${ip}/test${d}/cnab${d}:cnab_tag${d}
+    CNAB Push Bundle  ${ip}  user010  Test1@34  ${target}  ./tests/robot-cases/Group0-Util/bundle.json
+
+    Go Into Project  test${d}
+    Wait Until Page Contains  test${d}/cnab${d}
+
+    Go Into Repo  test${d}/cnab${d}
+    Wait Until Page Contains  cnab_tag${d}
+    Go Into Project  test${d}
+    Wait Until Page Contains  test${d}/cnab${d}
+    Go Into Repo  test${d}/cnab${d}
+    Retry Double Keywords When Error  Go Into Index  index_name=${null}  Page Should Contain Element  ${tag_table_column_os_arch}
+    Page Should Contain Element  ${artifact_rows}  limit=3
+
+Test Case - Push Helm Chart and Display
+    Init Chrome Driver
+    ${d}=    Get Current Date    result_format=%m%s
+    ${chart_file}=  Set Variable  https://storage.googleapis.com/harbor-builds/helm-chart-test-files/harbor-0.2.0.tgz
+    ${archive}=  Set Variable  harbor/
+    ${verion}=  Set Variable  0.2.0
+    ${repo_name}=  Set Variable  harbor_chart_test
+
+    Sign In Harbor  ${HARBOR_URL}  user010  Test1@34
+    Create An New Project  test${d}
+
+    Helm Chart Push  ${ip}  user010  Test1@34  ${chart_file}  ${archive}  test${d}  ${repo_name}  ${verion}
+
+    Go Into Project  test${d}
+    Wait Until Page Contains  test${d}/${repo_name}
+
+    Go Into Repo  test${d}/${repo_name}
+    Wait Until Page Contains  ${repo_name}
+    Go Into Project  test${d}
+    Wait Until Page Contains  test${d}/${repo_name}
+    Retry Double Keywords When Error  Go Into Repo  test${d}/${repo_name}  Page Should Contain Element  ${tag_table_column_vulnerabilities}

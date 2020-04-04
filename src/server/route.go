@@ -30,9 +30,7 @@ func registerRoutes() {
 	// Controller API:
 	beego.Router("/c/login", &controllers.CommonController{}, "post:Login")
 	beego.Router("/c/log_out", &controllers.CommonController{}, "get:LogOut")
-	beego.Router("/c/reset", &controllers.CommonController{}, "post:ResetPassword")
 	beego.Router("/c/userExists", &controllers.CommonController{}, "post:UserExists")
-	beego.Router("/c/sendEmail", &controllers.CommonController{}, "get:SendResetEmail")
 	beego.Router(common.OIDCLoginPath, &controllers.OIDCController{}, "get:RedirectLogin")
 	beego.Router("/c/oidc/onboard", &controllers.OIDCController{}, "post:Onboard")
 	beego.Router(common.OIDCCallbackPath, &controllers.OIDCController{}, "get:Callback")
@@ -58,6 +56,15 @@ func registerRoutes() {
 		beego.Router("/chartrepo/:repo/index.yaml", chartRepositoryAPIType, "get:GetIndexByRepo")
 		beego.Router("/chartrepo/index.yaml", chartRepositoryAPIType, "get:GetIndex")
 		beego.Router("/chartrepo/:repo/charts/:filename", chartRepositoryAPIType, "get:DownloadChart")
+		beego.Router("/api/chartrepo/health", chartRepositoryAPIType, "get:GetHealthStatus")
+		beego.Router("/api/chartrepo/:repo/charts", chartRepositoryAPIType, "get:ListCharts")
+		beego.Router("/api/chartrepo/:repo/charts/:name", chartRepositoryAPIType, "get:ListChartVersions")
+		beego.Router("/api/chartrepo/:repo/charts/:name", chartRepositoryAPIType, "delete:DeleteChart")
+		beego.Router("/api/chartrepo/:repo/charts/:name/:version", chartRepositoryAPIType, "get:GetChartVersion")
+		beego.Router("/api/chartrepo/:repo/charts/:name/:version", chartRepositoryAPIType, "delete:DeleteChartVersion")
+		beego.Router("/api/chartrepo/:repo/charts", chartRepositoryAPIType, "post:UploadChartVersion")
+		beego.Router("/api/chartrepo/:repo/prov", chartRepositoryAPIType, "post:UploadChartProvFile")
+		beego.Router("/api/chartrepo/charts", chartRepositoryAPIType, "post:UploadChartVersion")
 	}
 
 	// Error pages

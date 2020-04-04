@@ -16,11 +16,11 @@ package harbor
 
 import (
 	"fmt"
-	"github.com/goharbor/harbor/src/api/artifact"
 	"github.com/goharbor/harbor/src/common/api"
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/lib/log"
 	adp "github.com/goharbor/harbor/src/replication/adapter"
 	"github.com/goharbor/harbor/src/replication/filter"
 	"github.com/goharbor/harbor/src/replication/model"
@@ -149,7 +149,7 @@ func (a *adapter) listArtifacts(repository string, filters []*model.Filter) ([]*
 	url := fmt.Sprintf("%s/api/%s/projects/%s/repositories/%s/artifacts?with_label=true",
 		a.getURL(), api.APIVersion, project, repository)
 	artifacts := []*artifact.Artifact{}
-	if err := a.client.Get(url, &artifacts); err != nil {
+	if err := a.client.GetAndIteratePagination(url, &artifacts); err != nil {
 		return nil, err
 	}
 	var arts []*model.Artifact

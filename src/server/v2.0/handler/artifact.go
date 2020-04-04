@@ -17,7 +17,7 @@ package handler
 import (
 	"context"
 	"fmt"
-	"github.com/goharbor/harbor/src/api/event/metadata"
+	"github.com/goharbor/harbor/src/controller/event/metadata"
 	"github.com/goharbor/harbor/src/pkg/notification"
 	"net/http"
 	"strings"
@@ -26,14 +26,14 @@ import (
 	"github.com/docker/distribution/reference"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/goharbor/harbor/src/api/artifact"
-	"github.com/goharbor/harbor/src/api/artifact/processor"
-	"github.com/goharbor/harbor/src/api/repository"
-	"github.com/goharbor/harbor/src/api/scan"
-	"github.com/goharbor/harbor/src/api/tag"
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/utils"
-	ierror "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/controller/artifact/processor"
+	"github.com/goharbor/harbor/src/controller/repository"
+	"github.com/goharbor/harbor/src/controller/scan"
+	"github.com/goharbor/harbor/src/controller/tag"
+	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/server/v2.0/handler/assembler"
 	"github.com/goharbor/harbor/src/server/v2.0/handler/model"
 	"github.com/goharbor/harbor/src/server/v2.0/models"
@@ -181,7 +181,7 @@ func (a *artifactAPI) CopyArtifact(ctx context.Context, params operation.CopyArt
 func parse(s string) (string, string, error) {
 	matches := reference.ReferenceRegexp.FindStringSubmatch(s)
 	if matches == nil {
-		return "", "", ierror.New(nil).WithCode(ierror.BadRequestCode).
+		return "", "", errors.New(nil).WithCode(errors.BadRequestCode).
 			WithMessage("invalid input: %s", s)
 	}
 	repository := matches[1]
@@ -189,7 +189,7 @@ func parse(s string) (string, string, error) {
 	if matches[3] != "" {
 		_, err := digest.Parse(matches[3])
 		if err != nil {
-			return "", "", ierror.New(nil).WithCode(ierror.BadRequestCode).
+			return "", "", errors.New(nil).WithCode(errors.BadRequestCode).
 				WithMessage("invalid input: %s", s)
 		}
 		reference = matches[3]
@@ -248,7 +248,7 @@ func (a *artifactAPI) DeleteTag(ctx context.Context, params operation.DeleteTagP
 	}
 	// the tag not found
 	if id == 0 {
-		err = ierror.New(nil).WithCode(ierror.NotFoundCode).WithMessage(
+		err = errors.New(nil).WithCode(errors.NotFoundCode).WithMessage(
 			"tag %s attached to artifact %d not found", params.TagName, artifact.ID)
 		return a.SendError(ctx, err)
 	}

@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/goharbor/harbor/src/api/event"
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/controller/event"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/notification"
 )
 
@@ -383,6 +383,7 @@ func initSupportedEvents() map[string]struct{} {
 		event.TopicQuotaWarning,
 		event.TopicScanningFailed,
 		event.TopicScanningCompleted,
+		event.TopicReplication,
 	}
 
 	var supportedEventTypes = make(map[string]struct{})

@@ -27,7 +27,7 @@ import { AddMemberComponent } from './member/add-member/add-member.component';
 import { AddGroupComponent } from './member/add-group/add-group.component';
 import { MemberService } from './member/member.service';
 import { RobotService } from './robot-account/robot-account.service';
-import { ProjectRoutingResolver } from './project-routing-resolver.service';
+import { ProjectRoutingResolver } from '../services/routing-resolvers/project-routing-resolver.service';
 import { TargetExistsValidatorDirective } from '../shared/target-exists-directive';
 import { HelmChartModule } from './helm-chart/helm-chart.module';
 import { RobotAccountComponent } from './robot-account/robot-account.component';
@@ -63,6 +63,7 @@ import {
 import { ArtifactDefaultService, ArtifactService } from "./repository/artifact/artifact.service";
 import { GridViewComponent } from "./repository/gridview/grid-view.component";
 import { LastTriggerComponent } from "./webhook/last-trigger/last-trigger.component";
+import { AllPipesModule } from '../all-pipes/all-pipes.module';
 
 @NgModule({
   imports: [
@@ -73,6 +74,7 @@ import { LastTriggerComponent } from "./webhook/last-trigger/last-trigger.compon
     HelmChartModule,
     SummaryModule,
     TagFeatureIntegrationModule,
+    AllPipesModule
   ],
   declarations: [
     ProjectComponent,
@@ -114,7 +116,6 @@ import { LastTriggerComponent } from "./webhook/last-trigger/last-trigger.compon
   ],
   exports: [ProjectComponent, ListProjectComponent],
   providers: [
-    ProjectRoutingResolver,
     MemberService,
     RobotService,
     WebhookService,

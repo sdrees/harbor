@@ -19,11 +19,11 @@ https:
 
 # # Uncomment following will enable tls communication between all harbor components
 # internal_tls:
-# # set enabled to true means internal tls is enabled
+#   # set enabled to true means internal tls is enabled
 #   enabled: true
-# # verify_client_cert used to decide whether verify client certificate
+#   # verify_client_cert used to decide whether verify client certificate
 #   verify_client_cert: false
-# # put your cert and key files on dir
+#   # put your cert and key files on dir
 #   dir: /etc/harbor/tls/internal
 
 # Uncomment external_url if you want to enable external proxy
@@ -70,6 +70,14 @@ clair:
 
 # Trivy configuration
 trivy:
+  # ignoreUnfixed The flag to display only fixed vulnerabilities
+  ignore_unfixed: false
+  # skipUpdate The flag to enable or disable Trivy DB downloads from GitHub
+  #
+  # You might want to enable this flag in test or CI/CD environments to avoid GitHub rate limiting issues.
+  # If the flag is enabled you have to manually download the `trivy.db` file and mount it in the
+  # /home/scanner/.cache/trivy/db/trivy.db path.
+  skip_update: false
   # github_token The GitHub access token to download Trivy DB
   #
   # Trivy DB contains vulnerability information from NVD, Red Hat, and many other upstream vulnerability databases.
@@ -125,7 +133,7 @@ log:
   #   port: 5140
 
 #This attribute is for migrator to detect the version of the .cfg file, DO NOT MODIFY!
-_version: 1.10.0
+_version: 2.0.0
 
 # Uncomment external_database if using external database.
 # external_database:

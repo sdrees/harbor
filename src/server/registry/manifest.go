@@ -15,12 +15,12 @@
 package registry
 
 import (
-	"github.com/goharbor/harbor/src/api/artifact"
-	"github.com/goharbor/harbor/src/api/event/metadata"
-	"github.com/goharbor/harbor/src/api/repository"
-	"github.com/goharbor/harbor/src/common/utils/log"
-	"github.com/goharbor/harbor/src/internal"
-	ierror "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/controller/event/metadata"
+	"github.com/goharbor/harbor/src/controller/repository"
+	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/notification"
 	"github.com/goharbor/harbor/src/pkg/registry"
 	serror "github.com/goharbor/harbor/src/server/error"
@@ -47,7 +47,7 @@ func getManifest(w http.ResponseWriter, req *http.Request) {
 		req.URL.RawPath = req.URL.EscapedPath()
 	}
 
-	recorder := internal.NewResponseRecorder(w)
+	recorder := lib.NewResponseRecorder(w)
 	proxy.ServeHTTP(recorder, req)
 	// fire event, ignore the HEAD request and pulling request from replication service
 	if !recorder.Success() || req.Method == http.MethodHead ||
@@ -76,7 +76,7 @@ func deleteManifest(w http.ResponseWriter, req *http.Request) {
 	if _, err := digest.Parse(reference); err != nil {
 		switch err {
 		case digest.ErrDigestInvalidFormat:
-			serror.SendError(w, ierror.New(nil).WithCode(ierror.DIGESTINVALID).
+			serror.SendError(w, errors.New(nil).WithCode(errors.DIGESTINVALID).
 				WithMessage(digest.ErrDigestInvalidFormat.Error()))
 			return
 		}
@@ -104,7 +104,7 @@ func putManifest(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	buffer := internal.NewResponseBuffer(w)
+	buffer := lib.NewResponseBuffer(w)
 	// proxy the req to the backend docker registry
 	proxy.ServeHTTP(buffer, req)
 	if !buffer.Success() {

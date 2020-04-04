@@ -16,12 +16,12 @@ package registry
 
 import (
 	"encoding/json"
-	"github.com/goharbor/harbor/src/api/repository"
-	"github.com/goharbor/harbor/src/api/tag"
 	"github.com/goharbor/harbor/src/common/models"
+	"github.com/goharbor/harbor/src/controller/repository"
+	"github.com/goharbor/harbor/src/controller/tag"
 	model_tag "github.com/goharbor/harbor/src/pkg/tag/model/tag"
-	repotesting "github.com/goharbor/harbor/src/testing/api/repository"
-	tagtesting "github.com/goharbor/harbor/src/testing/api/tag"
+	repotesting "github.com/goharbor/harbor/src/testing/controller/repository"
+	tagtesting "github.com/goharbor/harbor/src/testing/controller/tag"
 	"github.com/stretchr/testify/suite"
 	"net/http"
 	"net/http/httptest"

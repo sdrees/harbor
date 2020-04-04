@@ -24,7 +24,7 @@ import (
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/validation"
 	commonhttp "github.com/goharbor/harbor/src/common/http"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/lib/log"
 	serror "github.com/goharbor/harbor/src/server/error"
 )
 
@@ -193,12 +193,11 @@ func (b *BaseAPI) ParseAndHandleError(text string, err error) {
 	if err == nil {
 		return
 	}
-	log.Errorf("%s: %v", text, err)
 	if e, ok := err.(*commonhttp.Error); ok {
-		b.RenderError(e.Code, e.Message)
+		b.RenderError(e.Code, fmt.Sprintf("%s: %s", text, e.Message))
 		return
 	}
-	b.SendInternalServerError(errors.New(""))
+	b.SendInternalServerError(fmt.Errorf("%s: %v", text, err))
 }
 
 // SendUnAuthorizedError sends unauthorized error to the client.
@@ -226,7 +225,7 @@ func (b *BaseAPI) SendBadRequestError(err error) {
 // When you send an internal server error  to the client, you expect user to check the log
 // to find out the root cause.
 func (b *BaseAPI) SendInternalServerError(err error) {
-	b.RenderError(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+	b.RenderError(http.StatusInternalServerError, err.Error())
 }
 
 // SendForbiddenError sends forbidden error to the client.

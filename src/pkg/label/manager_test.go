@@ -17,8 +17,8 @@ package label
 import (
 	"context"
 	"github.com/goharbor/harbor/src/common/models"
-	ierror "github.com/goharbor/harbor/src/internal/error"
-	"github.com/goharbor/harbor/src/pkg/q"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"testing"
@@ -109,7 +109,7 @@ func (m *managerTestSuite) TestRemoveFrom() {
 	m.dao.On("DeleteReferences").Return(0, nil)
 	err = m.mgr.RemoveFrom(nil, 1, 1)
 	m.Require().NotNil(err)
-	m.True(ierror.IsErr(err, ierror.NotFoundCode))
+	m.True(errors.IsErr(err, errors.NotFoundCode))
 }
 
 func (m *managerTestSuite) TestRemoveAllFrom() {

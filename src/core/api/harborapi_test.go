@@ -28,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/goharbor/harbor/src/server/middleware/security"
+
 	"github.com/astaxie/beego"
 	"github.com/dghubble/sling"
 	"github.com/goharbor/harbor/src/common/api"
@@ -40,7 +42,6 @@ import (
 	_ "github.com/goharbor/harbor/src/core/auth/db"
 	_ "github.com/goharbor/harbor/src/core/auth/ldap"
 	"github.com/goharbor/harbor/src/core/config"
-	"github.com/goharbor/harbor/src/core/filter"
 	"github.com/goharbor/harbor/src/pkg/notification"
 	"github.com/goharbor/harbor/src/replication/model"
 	"github.com/goharbor/harbor/src/testing/apitests/apilib"
@@ -54,6 +55,7 @@ const (
 )
 
 var admin, unknownUsr, testUser *usrInfo
+var handler http.Handler
 
 type testapi struct {
 	basePath string
@@ -91,10 +93,6 @@ func init() {
 	apppath, _ := filepath.Abs(dir)
 	beego.BConfig.WebConfig.Session.SessionOn = true
 	beego.TestBeegoInit(apppath)
-
-	filter.Init()
-	beego.InsertFilter("/api/*", beego.BeforeStatic, filter.SessionCheck)
-	beego.InsertFilter("/*", beego.BeforeRouter, filter.SecurityFilter)
 
 	beego.Router("/api/health", &HealthAPI{}, "get:CheckHealth")
 	beego.Router("/api/search/", &SearchAPI{})
@@ -169,15 +167,15 @@ func init() {
 	beego.Router("/api/projects/:pid([0-9]+)/immutabletagrules/:id([0-9]+)", &ImmutableTagRuleAPI{})
 	// Charts are controlled under projects
 	chartRepositoryAPIType := &ChartRepositoryAPI{}
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/health", chartRepositoryAPIType, "get:GetHealthStatus")
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/:repo/charts", chartRepositoryAPIType, "get:ListCharts")
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/:repo/charts/:name", chartRepositoryAPIType, "get:ListChartVersions")
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/:repo/charts/:name", chartRepositoryAPIType, "delete:DeleteChart")
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/:repo/charts/:name/:version", chartRepositoryAPIType, "get:GetChartVersion")
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/:repo/charts/:name/:version", chartRepositoryAPIType, "delete:DeleteChartVersion")
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/:repo/charts", chartRepositoryAPIType, "post:UploadChartVersion")
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/:repo/prov", chartRepositoryAPIType, "post:UploadChartProvFile")
-	beego.Router("/api/"+api.APIVersion+"/chartrepo/charts", chartRepositoryAPIType, "post:UploadChartVersion")
+	beego.Router("/api/chartrepo/health", chartRepositoryAPIType, "get:GetHealthStatus")
+	beego.Router("/api/chartrepo/:repo/charts", chartRepositoryAPIType, "get:ListCharts")
+	beego.Router("/api/chartrepo/:repo/charts/:name", chartRepositoryAPIType, "get:ListChartVersions")
+	beego.Router("/api/chartrepo/:repo/charts/:name", chartRepositoryAPIType, "delete:DeleteChart")
+	beego.Router("/api/chartrepo/:repo/charts/:name/:version", chartRepositoryAPIType, "get:GetChartVersion")
+	beego.Router("/api/chartrepo/:repo/charts/:name/:version", chartRepositoryAPIType, "delete:DeleteChartVersion")
+	beego.Router("/api/chartrepo/:repo/charts", chartRepositoryAPIType, "post:UploadChartVersion")
+	beego.Router("/api/chartrepo/:repo/prov", chartRepositoryAPIType, "post:UploadChartProvFile")
+	beego.Router("/api/chartrepo/charts", chartRepositoryAPIType, "post:UploadChartVersion")
 
 	// Repository services
 	beego.Router("/chartrepo/:repo/index.yaml", chartRepositoryAPIType, "get:GetIndexByRepo")
@@ -218,6 +216,8 @@ func init() {
 	// Init mock jobservice
 	mockServer := test.NewJobServiceServer()
 	defer mockServer.Close()
+
+	handler = security.Middleware()(beego.BeeApp.Handlers)
 }
 
 func request0(_sling *sling.Sling, acceptHeader string, authInfo ...usrInfo) (int, http.Header, []byte, error) {
@@ -230,7 +230,7 @@ func request0(_sling *sling.Sling, acceptHeader string, authInfo ...usrInfo) (in
 		req.SetBasicAuth(authInfo[0].Name, authInfo[0].Passwd)
 	}
 	w := httptest.NewRecorder()
-	beego.BeeApp.Handlers.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	body, err := ioutil.ReadAll(w.Body)
 	return w.Code, w.Header(), body, err

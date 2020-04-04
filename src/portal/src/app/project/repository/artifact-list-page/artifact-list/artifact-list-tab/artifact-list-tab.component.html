@@ -91,17 +91,17 @@
             [(clrDgSelected)]="selectedRow">
             <clr-dg-action-bar>
                 <button [clrLoading]="scanBtnState" type="button" class="btn  btn-secondary scan-btn"
-                    [disabled]="!(canScanNow() && selectedRowHasVul() && selectedRow.length==1 && hasEnabledScanner && hasScanImagePermission )" (click)="scanNow()">
+                    [disabled]="!(canScanNow() && selectedRowHasVul() && hasEnabledScanner && hasScanImagePermission )" (click)="scanNow()">
                     <clr-icon shape="shield-check" size="16"></clr-icon>&nbsp;{{'VULNERABILITY.SCAN_NOW' | translate}}
                 </button>
 
-                <clr-dropdown class="btn  btn-link">
+                <clr-dropdown class="btn  btn-link" *ngIf="!depth">
                     <span clrDropdownTrigger id="artifact-list-action" class="btn pl-0">
                         {{'BUTTON.ACTIONS' | translate}}
                         <clr-icon shape="caret down"></clr-icon>
                     </span>
                     <clr-dropdown-menu class="action-dropdown" clrPosition="bottom-left" *clrIfOpen>
-                        <div class="action-dropdown-item" aria-label="copy digest" clrDropdownItem
+                        <div class="action-dropdown-item no-border" aria-label="copy digest" clrDropdownItem
                             [clrDisabled]="!(selectedRow.length==1&& !depth)" (click)="showDigestId()">
                             {{'REPOSITORY.COPY_DIGEST_ID' | translate}}</div>
                         <clr-dropdown *ngIf="!withAdmiral">
@@ -110,7 +110,7 @@
                                 (click)="addLabels()">
                                 {{'REPOSITORY.ADD_LABELS' | translate}}
                             </button>
-                            <clr-dropdown-menu>
+                            <clr-dropdown-menu [hidden]="!selectedRow.length">
                                 <div class="filter-grid">
                                     <label
                                         class="dropdown-header">{{'REPOSITORY.ADD_LABEL_TO_IMAGE' | translate}}</label>
@@ -149,7 +149,7 @@
             <clr-dg-column class="flex-max-width">{{'REPOSITORY.ARTIFACTS_COUNT' | translate}}
             </clr-dg-column>
             <clr-dg-column *ngIf="depth">{{'REPOSITORY.PLATFORM' | translate}}</clr-dg-column>
-            <clr-dg-column class="w-rem-4">{{'REPOSITORY.TAGS_COUNT' | translate}}</clr-dg-column>
+            <clr-dg-column class="w-rem-4">{{'REPOSITORY.TAGS' | translate}}</clr-dg-column>
             <clr-dg-column >{{'REPOSITORY.SIZE' | translate}}</clr-dg-column>
             <clr-dg-column>{{'REPOSITORY.VULNERABILITY' | translate}}</clr-dg-column>
             <clr-dg-column>{{'ARTIFACT.ANNOTATION' | translate}}</clr-dg-column>
@@ -161,7 +161,7 @@
                 <clr-dg-cell class="truncated flex-max-width">
                     <div class="cell white-normal">
                         <img class="artifact-icon" [title]="artifact.type"
-                            [src]="artifact.showImage" />
+                            [src]="artifact.type | selectArtifactIcon" />
                         &nbsp; &nbsp;
                         <a href="javascript:void(0)" class="max-width-100" (click)="goIntoArtifactSummaryPage(artifact)"
                             title="{{artifact.digest}}">
@@ -202,23 +202,35 @@
                                     </div>
                                 </div>
                             </div>
-                            <clr-tooltip-content [clrPosition]="'top-right'" [clrSize]="'lg'" *clrIfOpen>
+                            <clr-tooltip-content [clrPosition]="'top-right'" class="lg" [clrSize]="'lg'" *clrIfOpen>
                                 <table class="table table-noborder mt-0 table-tag">
                                     <thead class="tag-thead">
                                         <tr>
                                             <th class="left tag-header-color">
-                                                {{'REPOSITORY.TAGS_COUNT' | translate | uppercase}}</th>
+                                                {{'REPOSITORY.TAGS' | translate | uppercase}}</th>
                                             <th class="left tag-header-color">
-                                                {{'REPOSITORY.PUSH_TIME' | translate | uppercase}}</th>
+                                                    {{'REPOSITORY.SIGNED' | translate | uppercase}}</th>
                                             <th class="left tag-header-color">
                                                 {{'REPOSITORY.PULL_TIME' | translate | uppercase}}</th>
+                                            <th class="left tag-header-color">
+                                                {{'REPOSITORY.PUSH_TIME' | translate | uppercase}}</th>
                                         </tr>
                                     </thead>
                                     <tbody class="tag-tbody">
                                         <tr class="tag-tr" *ngFor="let tag of artifact.tags">
                                             <td class="left tag-body-color">{{tag.name}}</td>
+                                            <td class="left tag-body-color" [ngSwitch]="tag.signed">
+                                                <div class="cell">
+                                                    <clr-icon shape="check-circle" *ngSwitchCase="true" size="20" class="color-green"></clr-icon>
+                                                    <clr-icon shape="times-circle" *ngSwitchCase="false" size="16" class="color-red"></clr-icon>
+                                                    <a href="javascript:void(0)" *ngSwitchDefault role="tooltip" aria-haspopup="true" class="tooltip tooltip-top-right">
+                                                        <clr-icon shape="help" class="color-gray" size="16"></clr-icon>
+                                                        <span class="tooltip-content">{{'REPOSITORY.NOTARY_IS_UNDETERMINED' | translate}}</span>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                            <td class="left tag-body-color">{{tag.pull_time === availableTime ? '':(tag.pull_time | date: 'short')}}</td>
                                             <td class="left tag-body-color">{{tag.push_time | date: 'short'}}</td>
-                                            <td class="left tag-body-color">{{tag.pull_time | date: 'short'}}</td>
                                         </tr>
                                     </tbody>
                                 </table>

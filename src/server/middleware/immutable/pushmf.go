@@ -1,16 +1,15 @@
 package immutable
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/goharbor/harbor/src/api/artifact"
-	"github.com/goharbor/harbor/src/api/tag"
 	common_util "github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
-	"github.com/goharbor/harbor/src/internal"
-	internal_errors "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/controller/tag"
+	"github.com/goharbor/harbor/src/lib"
+	errors "github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/log"
 	serror "github.com/goharbor/harbor/src/server/error"
 )
 
@@ -21,11 +20,11 @@ func Middleware() func(http.Handler) http.Handler {
 			if err := handlePush(req); err != nil {
 				var e *ErrImmutable
 				if errors.As(err, &e) {
-					pkgE := internal_errors.New(e).WithCode(internal_errors.PreconditionCode)
+					pkgE := errors.New(e).WithCode(errors.PreconditionCode)
 					serror.SendError(rw, pkgE)
 					return
 				}
-				pkgE := internal_errors.New(fmt.Errorf("error occurred when to handle request in immutable handler: %v", err)).WithCode(internal_errors.GeneralCode)
+				pkgE := errors.New(fmt.Errorf("error occurred when to handle request in immutable handler: %v", err)).WithCode(errors.GeneralCode)
 				serror.SendError(rw, pkgE)
 				return
 			}
@@ -38,8 +37,8 @@ func Middleware() func(http.Handler) http.Handler {
 // If the pushing image matched by any of immutable rule, will have to whether it is the first time to push it,
 // as the immutable rule only impacts the existing tag.
 func handlePush(req *http.Request) error {
-	none := internal.ArtifactInfo{}
-	art := internal.GetArtifactInfo(req.Context())
+	none := lib.ArtifactInfo{}
+	art := lib.GetArtifactInfo(req.Context())
 	if art == none {
 		return errors.New("cannot get the manifest information from request context")
 	}

@@ -18,19 +18,18 @@ package handler
 
 import (
 	"context"
-	"errors"
-	"github.com/goharbor/harbor/src/internal"
-	ierror "github.com/goharbor/harbor/src/internal/error"
-	"github.com/goharbor/harbor/src/pkg/q"
+	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/q"
 	"net/url"
 	"strconv"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/goharbor/harbor/src/api/project"
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/security"
 	"github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/controller/project"
+	"github.com/goharbor/harbor/src/lib/log"
 	errs "github.com/goharbor/harbor/src/server/error"
 )
 
@@ -91,12 +90,27 @@ func (b *BaseAPI) RequireProjectAccess(ctx context.Context, projectIDOrName inte
 	}
 	secCtx, ok := security.FromContext(ctx)
 	if !ok {
-		return ierror.UnauthorizedError(errors.New("security context not found"))
+		return errors.UnauthorizedError(errors.New("security context not found"))
 	}
 	if !secCtx.IsAuthenticated() {
-		return ierror.UnauthorizedError(nil)
+		return errors.UnauthorizedError(nil)
 	}
-	return ierror.ForbiddenError(nil)
+	return errors.ForbiddenError(nil)
+}
+
+// RequireSysAdmin checks the system admin permission according to the security context
+func (b *BaseAPI) RequireSysAdmin(ctx context.Context) error {
+	secCtx, ok := security.FromContext(ctx)
+	if !ok {
+		return errors.UnauthorizedError(errors.New("security context not found"))
+	}
+	if !secCtx.IsAuthenticated() {
+		return errors.UnauthorizedError(nil)
+	}
+	if !secCtx.IsSysAdmin() {
+		return errors.ForbiddenError(nil).WithMessage(secCtx.GetUsername())
+	}
+	return nil
 }
 
 // BuildQuery builds the query model according to the query string
@@ -119,7 +133,11 @@ func (b *BaseAPI) BuildQuery(ctx context.Context, query *string, pageNumber, pag
 }
 
 // Links return Links based on the provided pagination information
-func (b *BaseAPI) Links(ctx context.Context, u *url.URL, total, pageNumber, pageSize int64) internal.Links {
+func (b *BaseAPI) Links(ctx context.Context, u *url.URL, total, pageNumber, pageSize int64) lib.Links {
+	var links lib.Links
+	if pageSize == 0 {
+		return links
+	}
 	ul := *u
 	// try to unescape the repository name which contains escaped slashes
 	if escapedPath, err := url.PathUnescape(ul.Path); err == nil {
@@ -127,11 +145,13 @@ func (b *BaseAPI) Links(ctx context.Context, u *url.URL, total, pageNumber, page
 	} else {
 		log.Errorf("failed to unescape the path %s: %v", ul.Path, err)
 	}
-	var links internal.Links
 	// prev
 	if pageNumber > 1 && (pageNumber-1)*pageSize < total {
 		q := ul.Query()
 		q.Set("page", strconv.FormatInt(pageNumber-1, 10))
+		// the URL may contain no "page_size", in this case the pageSize in the query is set by
+		// the go-swagger automatically
+		q.Set("page_size", strconv.FormatInt(pageSize, 10))
 		ul.RawQuery = q.Encode()
 		// try to unescape the query
 		if escapedQuery, err := url.QueryUnescape(ul.RawQuery); err == nil {
@@ -139,7 +159,7 @@ func (b *BaseAPI) Links(ctx context.Context, u *url.URL, total, pageNumber, page
 		} else {
 			log.Errorf("failed to unescape the query %s: %v", ul.RawQuery, err)
 		}
-		link := &internal.Link{
+		link := &lib.Link{
 			URL: ul.String(),
 			Rel: "prev",
 		}
@@ -149,6 +169,7 @@ func (b *BaseAPI) Links(ctx context.Context, u *url.URL, total, pageNumber, page
 	if pageSize*pageNumber < total {
 		q := ul.Query()
 		q.Set("page", strconv.FormatInt(pageNumber+1, 10))
+		q.Set("page_size", strconv.FormatInt(pageSize, 10))
 		ul.RawQuery = q.Encode()
 		// try to unescape the query
 		if escapedQuery, err := url.QueryUnescape(ul.RawQuery); err == nil {
@@ -156,7 +177,7 @@ func (b *BaseAPI) Links(ctx context.Context, u *url.URL, total, pageNumber, page
 		} else {
 			log.Errorf("failed to unescape the query %s: %v", ul.RawQuery, err)
 		}
-		link := &internal.Link{
+		link := &lib.Link{
 			URL: ul.String(),
 			Rel: "next",
 		}

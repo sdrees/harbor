@@ -423,7 +423,7 @@
         "ENABLE": "Enable",
         "DISABLE": "Disable",
         "NAME": "Name",
-        "TARGET": "Target",
+        "TARGET": "Endpoint URL",
         "EVENT_TYPES": "Event types",
         "DESCRIPTION": "Description",
         "NO_WEBHOOK": "No Webhook",
@@ -640,7 +640,7 @@
         "COPY_DIGEST_ID": "Copiar Digest",
         "DELETE": "Remover",
         "NAME": "Nome",
-        "TAGS_COUNT": "Tags",
+        "TAGS": "Tags",
         "PLATFORM": "OS/ARCH",
         "ARTIFACT_TOOTIP": "Click this icon to enter the Artifact list of refer",
         "ARTIFACTS_COUNT": "Artifacts",
@@ -655,8 +655,10 @@
         "DELETION_TITLE_REPO_SIGNED": "Repositório não pode ser removido",
         "DELETION_SUMMARY_REPO_SIGNED": "Repositório '{{repoName}}' não pode ser removido pois existem as seguintes imagens assinadas.\n{{signedImages}} \nVocê deve remover a assinatura de todas as imagens assinadas antes de remover o repositório!",
         "DELETION_SUMMARY_REPO": "Você deseja remover o repositório {{repoName}}?",
+        "DELETION_TITLE_ARTIFACT": "Confirm Artifact Deletion",
+        "DELETION_SUMMARY_ARTIFACT": "Do you want to delete artifact {{param}}? If you delete this artifact, all tags referenced by the digest will also be deleted.",
         "DELETION_TITLE_TAG": "Confirmar remoção de Tag",
-        "DELETION_SUMMARY_TAG": "Você quer remover a Tag {{param}}? If you delete this tag, all other tags referenced by the same digest will also be deleted.",
+        "DELETION_SUMMARY_TAG": "Você quer remover a Tag {{param}}? ",
         "DELETION_TITLE_TAG_DENIED": "Tags assinadas não podem ser removidas",
         "DELETION_SUMMARY_TAG_DENIED": "A tag deve ser removida do Notary antes de ser apagada.\nRemova do Notary com o seguinte comando:\n",
         "TAGS_NO_DELETE": "Remover é proibido em modo somente leitura.",
@@ -691,7 +693,7 @@
         "ADD_LABEL_TO_IMAGE": "Adicionar labels a essa imagem",
         "FILTER_BY_LABEL": "Filtrar imagens por label",
         "FILTER_ARTIFACT_BY_LABEL": "Filter actifact by label",
-        "ADD_LABELS": "Adicionar labels",
+        "ADD_LABELS": "Adicionar Labels",
         "RETAG": "Copy",
         "ACTION": "AÇÃO",
         "DEPLOY": "DEPLOY",
@@ -985,6 +987,7 @@
         "CHART": {
             "SCANNING_TIME": "Tempo de conclusão da análise:",
             "SCANNING_PERCENT": "Scan completed percent:",
+            "SCANNING_PERCENT_EXPLAIN": "Scan completed percentage is calculated as # of successfully scanned images / total number of images referenced within the image index.",
             "TOOLTIPS_TITLE": "{{totalVulnerability}} de {{totalPackages}} {{package}} possuem {{vulnerability}}.",
             "TOOLTIPS_TITLE_SINGULAR": "{{totalVulnerability}} de {{totalPackages}} {{package}} possuem {{vulnerability}}.",
             "TOOLTIPS_TITLE_ZERO": "No recognizable vulnerability found"
@@ -1018,7 +1021,7 @@
         "FILTER_FOR_ARTIFACTS": "Filter Artifacts",
         "ADDITIONS": "Additions",
         "ANNOTATION": "Annotations",
-        "EXTRA_PROPERTIES": "Extra Attributes",
+        "OVERVIEW": "Overview",
         "IMAGE": "IMAGE",
         "CHART": "CHART",
         "CNAB": "CNAB",
@@ -1053,7 +1056,8 @@
         "OF": "of",
         "ITEMS": "items",
         "ADD_TAG": "ADD TAG",
-        "REMOVE_TAG": "REMOVE TAG"
+        "REMOVE_TAG": "REMOVE TAG",
+        "NAME_ALREADY_EXISTS": "Tag already exists under the repository"
     },
     "LABEL": {
         "LABEL": "Label",
@@ -1144,6 +1148,7 @@
     "UNKNOWN": "n/a",
     "STATUS": "Status",
     "START_TIME": "Início",
+    "CREATION_TIME": "Creation Time",
     "END_TIME": "Finalização",
     "DETAILS": "Detalhes",
     "PENDING": "Pendente",
@@ -1396,7 +1401,8 @@
         "VIEW_DOC": "view documentation",
         "ALL_SCANNERS": "All scanners",
         "HELP_INFO_1": "The default scanner has been installed. To install other scanners refer to the ",
-        "HELP_INFO_2": "documentation."
+        "HELP_INFO_2": "documentation.",
+        "NO_DEFAULT_SCANNER": "No default scanner"
     }
 
 }

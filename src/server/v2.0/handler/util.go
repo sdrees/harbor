@@ -21,10 +21,10 @@ import (
 	"net/url"
 	"reflect"
 
-	"github.com/goharbor/harbor/src/api/artifact"
-	"github.com/goharbor/harbor/src/api/artifact/processor"
-	"github.com/goharbor/harbor/src/api/scan"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/controller/artifact/processor"
+	"github.com/goharbor/harbor/src/controller/scan"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/scan/report"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
 )
@@ -80,12 +80,12 @@ func unescapePathParams(params interface{}, fieldNames ...string) error {
 	for _, name := range fieldNames {
 		field := val.FieldByName(name)
 		if !field.IsValid() {
-			log.Warningf("field %s not found in params %v", name, params)
+			log.Debugf("field %s not found in %s", name, val.Type().Name())
 			continue
 		}
 
 		if !field.CanSet() {
-			log.Warningf("field %s can not be changed in params %v", name, params)
+			log.Debugf("field %s can not be changed in %s", name, val.Type().Name())
 			continue
 		}
 
@@ -97,7 +97,7 @@ func unescapePathParams(params interface{}, fieldNames ...string) error {
 			}
 			field.SetString(v)
 		default:
-			log.Warningf("field %s can not be unescaped in params %v", name, params)
+			log.Debugf("field %s can not be unescaped in %s", name, val.Type().Name())
 		}
 	}
 

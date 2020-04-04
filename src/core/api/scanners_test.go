@@ -19,10 +19,10 @@ import (
 	"net/http"
 	"testing"
 
-	sc "github.com/goharbor/harbor/src/api/scanner"
-	"github.com/goharbor/harbor/src/pkg/q"
+	sc "github.com/goharbor/harbor/src/controller/scanner"
+	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/pkg/scan/dao/scanner"
-	scannertesting "github.com/goharbor/harbor/src/testing/api/scanner"
+	scannertesting "github.com/goharbor/harbor/src/testing/controller/scanner"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"

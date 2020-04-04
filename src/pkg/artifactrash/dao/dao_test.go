@@ -2,11 +2,10 @@ package dao
 
 import (
 	"context"
-	"errors"
 	beegoorm "github.com/astaxie/beego/orm"
 	common_dao "github.com/goharbor/harbor/src/common/dao"
-	ierror "github.com/goharbor/harbor/src/internal/error"
-	"github.com/goharbor/harbor/src/internal/orm"
+	errors "github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/orm"
 	artdao "github.com/goharbor/harbor/src/pkg/artifact/dao"
 	"github.com/goharbor/harbor/src/pkg/artifactrash/model"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -73,15 +72,15 @@ func (d *daoTestSuite) TestCreate() {
 
 	_, err := d.dao.Create(d.ctx, aft)
 	d.Require().NotNil(err)
-	d.True(ierror.IsErr(err, ierror.ConflictCode))
+	d.True(errors.IsErr(err, errors.ConflictCode))
 }
 
 func (d *daoTestSuite) TestDelete() {
 	err := d.dao.Delete(d.ctx, 100021)
 	d.Require().NotNil(err)
-	var e *ierror.Error
+	var e *errors.Error
 	d.Require().True(errors.As(err, &e))
-	d.Equal(ierror.NotFoundCode, e.Code)
+	d.Equal(errors.NotFoundCode, e.Code)
 }
 
 func (d *daoTestSuite) TestFilter() {

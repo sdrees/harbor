@@ -25,7 +25,7 @@ import (
 
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/manifest/schema2"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/replication/adapter"
 	"github.com/goharbor/harbor/src/replication/model"
 	trans "github.com/goharbor/harbor/src/replication/transfer"
@@ -165,6 +165,8 @@ func (t *transfer) copy(src *repository, dst *repository, override bool) error {
 		}
 	}
 	if err != nil {
+		err = errors.New("got error during the whole transfer period, mark the job failure")
+		t.logger.Error(err)
 		return err
 	}
 
@@ -230,7 +232,7 @@ func (t *transfer) copyContent(content distribution.Descriptor, srcRepo, dstRepo
 	// the contents it contains are a few manifests/indexes
 	case v1.MediaTypeImageIndex, manifestlist.MediaTypeManifestList,
 		v1.MediaTypeImageManifest, schema2.MediaTypeManifest,
-		schema1.MediaTypeSignedManifest:
+		schema1.MediaTypeSignedManifest, schema1.MediaTypeManifest:
 		// as using digest as the reference, so set the override to true directly
 		return t.copyArtifact(srcRepo, digest, dstRepo, digest, true)
 	// handle foreign layer

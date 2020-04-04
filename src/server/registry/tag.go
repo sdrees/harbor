@@ -17,10 +17,10 @@ package registry
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/goharbor/harbor/src/api/repository"
-	"github.com/goharbor/harbor/src/api/tag"
-	ierror "github.com/goharbor/harbor/src/internal/error"
-	"github.com/goharbor/harbor/src/pkg/q"
+	"github.com/goharbor/harbor/src/controller/repository"
+	"github.com/goharbor/harbor/src/controller/tag"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/q"
 	serror "github.com/goharbor/harbor/src/server/error"
 	"github.com/goharbor/harbor/src/server/registry/util"
 	"github.com/goharbor/harbor/src/server/router"
@@ -64,7 +64,7 @@ func (t *tagHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if withN {
 		maxEntries, err = strconv.Atoi(reqQ.Get("n"))
 		if err != nil || maxEntries < 0 {
-			err := ierror.New(err).WithCode(ierror.BadRequestCode).WithMessage("the N must be a positive int type")
+			err := errors.New(err).WithCode(errors.BadRequestCode).WithMessage("the N must be a positive int type")
 			serror.SendError(w, err)
 			return
 		}
@@ -110,7 +110,7 @@ func (t *tagHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if lastEntry != "" {
 		lastEntryIndex := util.IndexString(tagNames, lastEntry)
 		if lastEntryIndex == -1 {
-			err := ierror.New(nil).WithCode(ierror.BadRequestCode).WithMessage(fmt.Sprintf("the last: %s should be a valid tag name.", lastEntry))
+			err := errors.New(nil).WithCode(errors.BadRequestCode).WithMessage(fmt.Sprintf("the last: %s should be a valid tag name.", lastEntry))
 			serror.SendError(w, err)
 			return
 		}

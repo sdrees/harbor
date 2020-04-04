@@ -16,18 +16,18 @@ package dao
 
 import (
 	"fmt"
-	"github.com/goharbor/harbor/src/common/models"
 	"net/url"
 	"os"
 	"strconv"
 
 	"github.com/astaxie/beego/orm"
+	"github.com/goharbor/harbor/src/common/models"
 	"github.com/golang-migrate/migrate"
 	_ "github.com/golang-migrate/migrate/database/postgres" // import pgsql driver for migrator
 	_ "github.com/golang-migrate/migrate/source/file"       // import local file driver for migrator
 
 	"github.com/goharbor/harbor/src/common/utils"
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/lib/log"
 	_ "github.com/lib/pq" // register pgsql driver
 )
 

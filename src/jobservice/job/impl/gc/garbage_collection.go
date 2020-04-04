@@ -16,9 +16,12 @@ package gc
 
 import (
 	"fmt"
-	"github.com/goharbor/harbor/src/api/artifact"
+	"github.com/goharbor/harbor/src/common/models"
+	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/controller/project"
+	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/pkg/artifactrash"
-	"github.com/goharbor/harbor/src/pkg/q"
+	"github.com/goharbor/harbor/src/pkg/blob"
 	"os"
 	"time"
 
@@ -29,6 +32,25 @@ import (
 	"github.com/goharbor/harbor/src/jobservice/job"
 	"github.com/goharbor/harbor/src/jobservice/logger"
 	"github.com/goharbor/harbor/src/registryctl/client"
+)
+
+var (
+	regCtlInit = registryctl.Init
+
+	getReadOnly = func(cfgMgr *config.CfgManager) (bool, error) {
+		if err := cfgMgr.Load(); err != nil {
+			return false, err
+		}
+		return cfgMgr.Get(common.ReadOnly).GetBool(), nil
+	}
+
+	setReadOnly = func(cfgMgr *config.CfgManager, switcher bool) error {
+		cfg := map[string]interface{}{
+			common.ReadOnly: switcher,
+		}
+		cfgMgr.UpdateConfig(cfg)
+		return cfgMgr.Save()
+	}
 )
 
 const (
@@ -44,6 +66,8 @@ const (
 type GarbageCollector struct {
 	artCtl            artifact.Controller
 	artrashMgr        artifactrash.Manager
+	blobMgr           blob.Manager
+	projectCtl        project.Controller
 	registryCtlClient client.Client
 	logger            logger.Interface
 	cfgMgr            *config.CfgManager
@@ -88,15 +112,15 @@ func (gc *GarbageCollector) Run(ctx job.Context, params job.Parameters) error {
 	if err := gc.init(ctx, params); err != nil {
 		return err
 	}
-	readOnlyCur, err := gc.getReadOnly()
+	readOnlyCur, err := getReadOnly(gc.cfgMgr)
 	if err != nil {
 		return err
 	}
 	if readOnlyCur != true {
-		if err := gc.setReadOnly(true); err != nil {
+		if err := setReadOnly(gc.cfgMgr, true); err != nil {
 			return err
 		}
-		defer gc.setReadOnly(readOnlyCur)
+		defer setReadOnly(gc.cfgMgr, readOnlyCur)
 	}
 	gc.logger.Infof("start to run gc in job.")
 	if err := gc.deleteCandidates(ctx); err != nil {
@@ -107,6 +131,7 @@ func (gc *GarbageCollector) Run(ctx job.Context, params job.Parameters) error {
 		gc.logger.Errorf("failed to get gc result: %v", err)
 		return err
 	}
+	gc.removeUntaggedBlobs(ctx)
 	if err := gc.cleanCache(); err != nil {
 		return err
 	}
@@ -116,12 +141,16 @@ func (gc *GarbageCollector) Run(ctx job.Context, params job.Parameters) error {
 }
 
 func (gc *GarbageCollector) init(ctx job.Context, params job.Parameters) error {
-	registryctl.Init()
-	gc.registryCtlClient = registryctl.RegistryCtlClient
+	regCtlInit()
 	gc.logger = ctx.GetLogger()
-	gc.artCtl = artifact.Ctl
-	gc.artrashMgr = artifactrash.NewManager()
-
+	// UT will use the mock client, ctl and mgr
+	if os.Getenv("UTTEST") != "true" {
+		gc.registryCtlClient = registryctl.RegistryCtlClient
+		gc.artCtl = artifact.Ctl
+		gc.artrashMgr = artifactrash.NewManager()
+		gc.blobMgr = blob.NewManager()
+		gc.projectCtl = project.Ctl
+	}
 	if err := gc.registryCtlClient.Health(); err != nil {
 		gc.logger.Errorf("failed to start gc as registry controller is unreachable: %v", err)
 		return err
@@ -139,27 +168,14 @@ func (gc *GarbageCollector) init(ctx job.Context, params job.Parameters) error {
 	gc.redisURL = params["redis_url_reg"].(string)
 
 	// default is to delete the untagged artifact
-	if params["delete_untagged"] == "" {
-		gc.deleteUntagged = true
-	} else {
-		gc.deleteUntagged = params["delete_untagged"].(bool)
+	gc.deleteUntagged = true
+	deleteUntagged, exist := params["delete_untagged"]
+	if exist {
+		if untagged, ok := deleteUntagged.(bool); ok && !untagged {
+			gc.deleteUntagged = untagged
+		}
 	}
 	return nil
-}
-
-func (gc *GarbageCollector) getReadOnly() (bool, error) {
-	if err := gc.cfgMgr.Load(); err != nil {
-		return false, err
-	}
-	return gc.cfgMgr.Get(common.ReadOnly).GetBool(), nil
-}
-
-func (gc *GarbageCollector) setReadOnly(switcher bool) error {
-	cfg := map[string]interface{}{
-		common.ReadOnly: switcher,
-	}
-	gc.cfgMgr.UpdateConfig(cfg)
-	return gc.cfgMgr.Save()
 }
 
 // cleanCache is to clean the registry cache for GC.
@@ -220,6 +236,8 @@ func (gc *GarbageCollector) deleteCandidates(ctx job.Context) error {
 			return err
 		}
 		for _, art := range untagged {
+			gc.logger.Infof("delete the untagged artifact: ProjectID:(%d)-RepositoryName(%s)-MediaType:(%s)-Digest:(%s)",
+				art.ProjectID, art.RepositoryName, art.ManifestMediaType, art.Digest)
 			if err := gc.artCtl.Delete(ctx.SystemContext(), art.ID); err != nil {
 				// the failure ones can be GCed by the next execution
 				gc.logger.Errorf("failed to delete untagged:%d artifact in DB, error, %v", art.ID, err)
@@ -233,10 +251,63 @@ func (gc *GarbageCollector) deleteCandidates(ctx job.Context) error {
 		return err
 	}
 	for _, art := range required {
+		gc.logger.Infof("delete the manifest with registry v2 API: RepositoryName(%s)-MediaType:(%s)-Digest:(%s)",
+			art.RepositoryName, art.ManifestMediaType, art.Digest)
 		if err := deleteManifest(art.RepositoryName, art.Digest); err != nil {
 			return fmt.Errorf("failed to delete manifest, %s:%s with error: %v", art.RepositoryName, art.Digest, err)
 		}
 	}
 	flushTrash = true
 	return nil
+}
+
+// clean the untagged blobs in each project, these blobs are not referenced by any manifest and will be cleaned by GC
+func (gc *GarbageCollector) removeUntaggedBlobs(ctx job.Context) {
+	// get all projects
+	projects := func(chunkSize int) <-chan *models.Project {
+		ch := make(chan *models.Project, chunkSize)
+
+		go func() {
+			defer close(ch)
+
+			params := &models.ProjectQueryParam{
+				Pagination: &models.Pagination{Page: 1, Size: int64(chunkSize)},
+			}
+
+			for {
+				results, err := gc.projectCtl.List(ctx.SystemContext(), params, project.Metadata(false))
+				if err != nil {
+					gc.logger.Errorf("list projects failed, error: %v", err)
+					return
+				}
+
+				for _, p := range results {
+					ch <- p
+				}
+
+				if len(results) < chunkSize {
+					break
+				}
+
+				params.Pagination.Page++
+			}
+
+		}()
+
+		return ch
+	}(50)
+
+	for project := range projects {
+		all, err := gc.blobMgr.List(ctx.SystemContext(), blob.ListParams{
+			ProjectID: project.ProjectID,
+		})
+		if err != nil {
+			gc.logger.Errorf("failed to get blobs of project, %v", err)
+			continue
+		}
+		if err := gc.blobMgr.CleanupAssociationsForProject(ctx.SystemContext(), project.ProjectID, all); err != nil {
+			gc.logger.Errorf("failed to clean untagged blobs of project, %v", err)
+			continue
+		}
+	}
 }

@@ -32,6 +32,7 @@ import { ChannelService } from "../../../../../../lib/services/channel.service";
 import { OperationService } from "../../../../../../lib/components/operation/operation.service";
 import { By } from "@angular/platform-browser";
 import { ArtifactService as NewArtifactService } from "../../../../../../../ng-swagger-gen/services/artifact.service";
+import { AllPipesModule } from "../../../../../all-pipes/all-pipes.module";
 
 describe("ArtifactListTabComponent (inline template)", () => {
 
@@ -247,9 +248,9 @@ describe("ArtifactListTabComponent (inline template)", () => {
     error: () => { }
   };
   const permissions = [
-    { resource: USERSTATICPERMISSION.REPOSITORY_TAG_LABEL.KEY, action: USERSTATICPERMISSION.REPOSITORY_TAG_LABEL.VALUE.CREATE },
+    { resource: USERSTATICPERMISSION.REPOSITORY_ARTIFACT_LABEL.KEY, action: USERSTATICPERMISSION.REPOSITORY_ARTIFACT_LABEL.VALUE.CREATE },
     { resource: USERSTATICPERMISSION.REPOSITORY.KEY, action: USERSTATICPERMISSION.REPOSITORY.VALUE.PULL },
-    { resource: USERSTATICPERMISSION.REPOSITORY_TAG.KEY, action: USERSTATICPERMISSION.REPOSITORY_TAG.VALUE.DELETE },
+    { resource: USERSTATICPERMISSION.ARTIFACT.KEY, action: USERSTATICPERMISSION.ARTIFACT.VALUE.DELETE },
     { resource: USERSTATICPERMISSION.REPOSITORY_TAG_SCAN_JOB.KEY, action: USERSTATICPERMISSION.REPOSITORY_TAG_SCAN_JOB.VALUE.CREATE },
   ];
   const mockRouter = {
@@ -290,6 +291,7 @@ describe("ArtifactListTabComponent (inline template)", () => {
         SharedModule,
         BrowserAnimationsModule,
         HttpClientTestingModule,
+        AllPipesModule
       ],
       schemas: [
         CUSTOM_ELEMENTS_SCHEMA

@@ -394,7 +394,7 @@
         "ENABLE": "Enable",
         "DISABLE": "Disable",
         "NAME": "Name",
-        "TARGET": "Target",
+        "TARGET": "Endpoint URL",
         "EVENT_TYPES": "Event types",
         "DESCRIPTION": "Description",
         "NO_WEBHOOK": "No Webhook",
@@ -641,7 +641,7 @@
         "COPY_DIGEST_ID": "Copy Digest",
         "DELETE": "Eliminar",
         "NAME": "Nombre",
-        "TAGS_COUNT": "Etiquetas",
+        "TAGS": "Etiquetas",
         "PLATFORM": "OS/ARCH",
         "ARTIFACT_TOOTIP": "Click this icon to enter the Artifact list of refer",
         "ARTIFACTS_COUNT": "Artifacts",
@@ -656,8 +656,10 @@
         "DELETION_TITLE_REPO_SIGNED": "Repository cannot be deleted",
         "DELETION_SUMMARY_REPO_SIGNED": "Repository '{{repoName}}' cannot be deleted because the following signed images existing.\n{{signedImages}} \nYou should unsign all the signed images before deleting the repository!",
         "DELETION_SUMMARY_REPO": "¿Quiere eliminar el repositorio {{repoName}}?",
+        "DELETION_TITLE_ARTIFACT": "Confirm Artifact Deletion",
+        "DELETION_SUMMARY_ARTIFACT": "Do you want to delete artifact {{param}}? If you delete this artifact, all tags referenced by the digest will also be deleted.",
         "DELETION_TITLE_TAG": "Confirmación de Eliminación de Etiqueta",
-        "DELETION_SUMMARY_TAG": "¿Quiere eliminar la etiqueta {{param}}? If you delete this tag, all other tags referenced by the same digest will also be deleted.",
+        "DELETION_SUMMARY_TAG": "¿Quiere eliminar la etiqueta {{param}}? ",
         "DELETION_TITLE_TAG_DENIED": "La etiqueta firmada no puede ser eliminada",
         "DELETION_SUMMARY_TAG_DENIED": "La etiqueta debe ser eliminada de la Notaría antes de eliminarla.\nEliminarla de la Notaría con este comando:\n",
         "TAGS_NO_DELETE": "Delete is prohibited in read only mode.",
@@ -692,7 +694,7 @@
         "ADD_LABEL_TO_IMAGE": "Add labels to this image",
         "FILTER_BY_LABEL": "Filter images by label",
         "FILTER_ARTIFACT_BY_LABEL": "Filter actifact by label",
-        "ADD_LABELS": "Add labels",
+        "ADD_LABELS": "Add Labels",
         "RETAG": "Copy",
         "ACTION": "ACTION",
         "DEPLOY": "DEPLOY",
@@ -989,6 +991,7 @@
         "CHART": {
             "SCANNING_TIME": "Scan completed time:",
             "SCANNING_PERCENT": "Scan completed percent:",
+            "SCANNING_PERCENT_EXPLAIN": "Scan completed percentage is calculated as # of successfully scanned images / total number of images referenced within the image index.",
             "TOOLTIPS_TITLE": "{{totalVulnerability}} of {{totalPackages}} {{package}} have known {{vulnerability}}.",
             "TOOLTIPS_TITLE_SINGULAR": "{{totalVulnerability}} of {{totalPackages}} {{package}} has known {{vulnerability}}.",
             "TOOLTIPS_TITLE_ZERO": "No recognizable vulnerability found"
@@ -1022,7 +1025,7 @@
         "FILTER_FOR_ARTIFACTS": "Filter Artifacts",
         "ADDITIONS": "Additions",
         "ANNOTATION": "Annotations",
-        "EXTRA_PROPERTIES": "Extra Attributes",
+        "OVERVIEW": "Overview",
         "IMAGE": "IMAGE",
         "CHART": "CHART",
         "CNAB": "CNAB",
@@ -1060,7 +1063,8 @@
         "PUSH_TIME": "Push Time",
         "OF": "of",
         "ADD_TAG": "ADD TAG",
-        "REMOVE_TAG": "REMOVE TAG"
+        "REMOVE_TAG": "REMOVE TAG",
+        "NAME_ALREADY_EXISTS": "Tag already exists under the repository"
 
     },
     "LABEL": {
@@ -1150,6 +1154,7 @@
     "UNKNOWN": "n/a",
     "STATUS": "Status",
     "START_TIME": "Start Time",
+    "CREATION_TIME": "Creation Time",
     "UPDATE_TIME": "Update Time",
     "LOGS": "Logs",
     "PENDING": "Pending",
@@ -1398,6 +1403,7 @@
         "VIEW_DOC": "view documentation",
         "ALL_SCANNERS": "All scanners",
         "HELP_INFO_1": "The default scanner has been installed. To install other scanners refer to the ",
-        "HELP_INFO_2": "documentation."
+        "HELP_INFO_2": "documentation.",
+        "NO_DEFAULT_SCANNER": "No default scanner"
     }
 }

@@ -13,6 +13,12 @@ enum APILevels {
     V1 = '',
     V2 = '/v2.0'
 }
+
+/**
+ * v1 base href
+ */
+export const V1_BASE_HREF = '/api' + APILevels.V1;
+
 /**
  * Current base href
  */
@@ -245,6 +251,7 @@ export const DEFAULT_SUPPORTED_MIME_TYPE = "application/vnd.scanner.adapter.vuln
  *  the property name of vulnerability database updated time
  */
 export const DATABASE_UPDATED_PROPERTY = "harbor.scanner-adapter/vulnerability-database-updated-at";
+export const DATABASE_NEXT_UPDATE_PROPERTY = "harbor.scanner-adapter/vulnerability-database-next-update-at";
 
 /**
  * The state of vulnerability scanning

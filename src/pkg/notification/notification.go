@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"context"
 
-	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/notification/hook"
 	"github.com/goharbor/harbor/src/pkg/notification/job"
 	jobMgr "github.com/goharbor/harbor/src/pkg/notification/job/manager"
@@ -41,6 +41,7 @@ func Init() {
 	JobMgr = jobMgr.NewDefaultManager()
 
 	SupportedNotifyTypes = make(map[string]struct{})
+
 	initSupportedNotifyType(model.NotifyTypeHTTP, model.NotifyTypeSlack)
 
 	log.Info("notification initialization completed")

@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/manifest/manifestlist"
@@ -32,8 +33,8 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	commonhttp "github.com/goharbor/harbor/src/common/http"
 	"github.com/goharbor/harbor/src/core/config"
-	"github.com/goharbor/harbor/src/internal"
-	ierror "github.com/goharbor/harbor/src/internal/error"
+	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/pkg/registry/auth"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -53,6 +54,7 @@ var (
 		v1.MediaTypeImageManifest,
 		schema2.MediaTypeManifest,
 		schema1.MediaTypeSignedManifest,
+		schema1.MediaTypeManifest,
 	}
 )
 
@@ -93,30 +95,22 @@ type Client interface {
 	Copy(srcRepository, srcReference, dstRepository, dstReference string, override bool) (err error)
 }
 
-// TODO support HTTPS
-
 // NewClient creates a registry client with the default authorizer which determines the auth scheme
 // of the registry automatically and calls the corresponding underlying authorizers(basic/bearer) to
 // do the auth work. If a customized authorizer is needed, use "NewClientWithAuthorizer" instead
 func NewClient(url, username, password string, insecure bool) Client {
-	var transportType uint
-	if insecure {
-		transportType = commonhttp.InsecureTransport
-	} else {
-		transportType = commonhttp.SecureTransport
-	}
-
 	return &client{
 		url:        url,
-		authorizer: auth.NewAuthorizer(username, password, transportType),
+		authorizer: auth.NewAuthorizer(username, password, insecure),
 		client: &http.Client{
-			Transport: commonhttp.GetHTTPTransport(transportType),
+			Transport: commonhttp.GetHTTPTransportByInsecure(insecure),
+			Timeout:   30 * time.Minute,
 		},
 	}
 }
 
 // NewClientWithAuthorizer creates a registry client with the provided authorizer
-func NewClientWithAuthorizer(url string, authorizer internal.Authorizer, insecure bool) Client {
+func NewClientWithAuthorizer(url string, authorizer lib.Authorizer, insecure bool) Client {
 	var transportType uint
 	if insecure {
 		transportType = commonhttp.InsecureTransport
@@ -135,7 +129,7 @@ func NewClientWithAuthorizer(url string, authorizer internal.Authorizer, insecur
 
 type client struct {
 	url        string
-	authorizer internal.Authorizer
+	authorizer lib.Authorizer
 	client     *http.Client
 }
 
@@ -256,7 +250,7 @@ func (c *client) ManifestExist(repository, reference string) (bool, string, erro
 	}
 	resp, err := c.do(req)
 	if err != nil {
-		if ierror.IsErr(err, ierror.NotFoundCode) {
+		if errors.IsErr(err, errors.NotFoundCode) {
 			return false, "", nil
 		}
 		return false, "", err
@@ -319,7 +313,7 @@ func (c *client) DeleteManifest(repository, reference string) error {
 			return err
 		}
 		if !exist {
-			return ierror.New(nil).WithCode(ierror.NotFoundCode).
+			return errors.New(nil).WithCode(errors.NotFoundCode).
 				WithMessage("%s:%s not found", repository, reference)
 		}
 		reference = digest
@@ -343,7 +337,7 @@ func (c *client) BlobExist(repository, digest string) (bool, error) {
 	}
 	resp, err := c.do(req)
 	if err != nil {
-		if ierror.IsErr(err, ierror.NotFoundCode) {
+		if errors.IsErr(err, errors.NotFoundCode) {
 			return false, nil
 		}
 		return false, err
@@ -438,8 +432,6 @@ func (c *client) DeleteBlob(repository, digest string) error {
 	return nil
 }
 
-// TODO extend this method to support copy artifacts between different registries when merging codes
-// TODO this can be used in replication to replace the existing implementation
 func (c *client) Copy(srcRepo, srcRef, dstRepo, dstRef string, override bool) error {
 	// pull the manifest from the source repository
 	manifest, srcDgt, err := c.PullManifest(srcRepo, srcRef)
@@ -459,7 +451,7 @@ func (c *client) Copy(srcRepo, srcRef, dstRepo, dstRef string, override bool) er
 		}
 		// the same name artifact exists, but not allowed to override
 		if !override {
-			return ierror.New(nil).WithCode(ierror.PreconditionCode).
+			return errors.New(nil).WithCode(errors.PreconditionCode).
 				WithMessage("the same name but different digest artifact exists, but the override is set to false")
 		}
 	}
@@ -473,7 +465,7 @@ func (c *client) Copy(srcRepo, srcRef, dstRepo, dstRef string, override bool) er
 		// manifest or index
 		case v1.MediaTypeImageIndex, manifestlist.MediaTypeManifestList,
 			v1.MediaTypeImageManifest, schema2.MediaTypeManifest,
-			schema1.MediaTypeSignedManifest:
+			schema1.MediaTypeSignedManifest, schema1.MediaTypeManifest:
 			if err = c.Copy(srcRepo, digest, dstRepo, digest, false); err != nil {
 				return err
 			}
@@ -491,17 +483,6 @@ func (c *client) Copy(srcRepo, srcRef, dstRepo, dstRef string, override bool) er
 			if err = c.MountBlob(srcRepo, digest, dstRepo); err != nil {
 				return err
 			}
-			/*
-				// copy happens between different registries
-				size, data, err := src.PullBlob(digest)
-				if err != nil {
-					return err
-				}
-				defer data.Close()
-				if err = dst.PushBlob(digest, size, data); err != nil {
-					return err
-				}
-			*/
 		}
 	}
 
@@ -535,16 +516,16 @@ func (c *client) do(req *http.Request) (*http.Response, error) {
 			return nil, err
 		}
 		message := fmt.Sprintf("http status code: %d, body: %s", resp.StatusCode, string(body))
-		code := ierror.GeneralCode
+		code := errors.GeneralCode
 		switch resp.StatusCode {
 		case http.StatusUnauthorized:
-			code = ierror.UnAuthorizedCode
+			code = errors.UnAuthorizedCode
 		case http.StatusForbidden:
-			code = ierror.ForbiddenCode
+			code = errors.ForbiddenCode
 		case http.StatusNotFound:
-			code = ierror.NotFoundCode
+			code = errors.NotFoundCode
 		}
-		return nil, ierror.New(nil).WithCode(code).
+		return nil, errors.New(nil).WithCode(code).
 			WithMessage(message)
 	}
 	return resp, nil
@@ -552,7 +533,7 @@ func (c *client) do(req *http.Request) (*http.Response, error) {
 
 // parse the next page link from the link header
 func next(link string) string {
-	links := internal.ParseLinks(link)
+	links := lib.ParseLinks(link)
 	for _, lk := range links {
 		if lk.Rel == "next" {
 			return lk.URL

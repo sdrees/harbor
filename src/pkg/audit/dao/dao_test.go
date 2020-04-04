@@ -16,13 +16,12 @@ package dao
 
 import (
 	"context"
-	"errors"
 	beegoorm "github.com/astaxie/beego/orm"
 	common_dao "github.com/goharbor/harbor/src/common/dao"
-	ierror "github.com/goharbor/harbor/src/internal/error"
-	"github.com/goharbor/harbor/src/internal/orm"
+	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/orm"
+	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/pkg/audit/model"
-	"github.com/goharbor/harbor/src/pkg/q"
 	"github.com/stretchr/testify/suite"
 	"testing"
 )
@@ -41,7 +40,7 @@ func (d *daoTestSuite) SetupSuite() {
 	artifactID, err := d.dao.Create(d.ctx, &model.AuditLog{
 		Operation:    "Create",
 		ResourceType: "artifact",
-		Resource:     "library/hello-world",
+		Resource:     "library/test-audit",
 		Username:     "admin",
 	})
 	d.Require().Nil(err)
@@ -59,7 +58,7 @@ func (d *daoTestSuite) TestCount() {
 	d.True(total > 0)
 	total, err = d.dao.Count(d.ctx, &q.Query{
 		Keywords: map[string]interface{}{
-			"ResourceType": "artifact",
+			"Resource": "library/test-audit",
 		},
 	})
 	d.Require().Nil(err)
@@ -74,7 +73,7 @@ func (d *daoTestSuite) TestList() {
 	// query by repository ID and name
 	audits, err = d.dao.List(d.ctx, &q.Query{
 		Keywords: map[string]interface{}{
-			"ResourceType": "artifact",
+			"Resource": "library/test-audit",
 		},
 	})
 	d.Require().Nil(err)
@@ -86,12 +85,56 @@ func (d *daoTestSuite) TestGet() {
 	// get the non-exist tag
 	_, err := d.dao.Get(d.ctx, 10000)
 	d.Require().NotNil(err)
-	d.True(ierror.IsErr(err, ierror.NotFoundCode))
+	d.True(errors.IsErr(err, errors.NotFoundCode))
 
 	audit, err := d.dao.Get(d.ctx, d.auditID)
 	d.Require().Nil(err)
 	d.Require().NotNil(audit)
 	d.Equal(d.auditID, audit.ID)
+}
+
+func (d *daoTestSuite) TestListPIDs() {
+	// get the non-exist tag
+	id1, err := d.dao.Create(d.ctx, &model.AuditLog{
+		Operation:    "Create",
+		ResourceType: "artifact",
+		Resource:     "library/hello-world",
+		Username:     "admin",
+		ProjectID:    11,
+	})
+	d.Require().Nil(err)
+	id2, err := d.dao.Create(d.ctx, &model.AuditLog{
+		Operation:    "Create",
+		ResourceType: "artifact",
+		Resource:     "library/hello-world",
+		Username:     "admin",
+		ProjectID:    12,
+	})
+	d.Require().Nil(err)
+	id3, err := d.dao.Create(d.ctx, &model.AuditLog{
+		Operation:    "Delete",
+		ResourceType: "artifact",
+		Resource:     "library/hello-world",
+		Username:     "admin",
+		ProjectID:    13,
+	})
+	d.Require().Nil(err)
+
+	// query by repository ID and name
+	ol := &q.OrList{}
+	for _, item := range []int64{11, 12, 13} {
+		ol.Values = append(ol.Values, item)
+	}
+	audits, err := d.dao.List(d.ctx, &q.Query{
+		Keywords: map[string]interface{}{
+			"ProjectID": ol,
+		},
+	})
+	d.Require().Nil(err)
+	d.Require().Equal(3, len(audits))
+	d.dao.Delete(d.ctx, id1)
+	d.dao.Delete(d.ctx, id2)
+	d.dao.Delete(d.ctx, id3)
 }
 
 func (d *daoTestSuite) TestCreate() {
@@ -109,9 +152,9 @@ func (d *daoTestSuite) TestCreate() {
 func (d *daoTestSuite) TestDelete() {
 	err := d.dao.Delete(d.ctx, 10000)
 	d.Require().NotNil(err)
-	var e *ierror.Error
+	var e *errors.Error
 	d.Require().True(errors.As(err, &e))
-	d.Equal(ierror.NotFoundCode, e.Code)
+	d.Equal(errors.NotFoundCode, e.Code)
 }
 
 func TestDaoTestSuite(t *testing.T) {
