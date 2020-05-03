@@ -16,13 +16,16 @@ package http
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
+	"time"
 
 	"github.com/goharbor/harbor/src/common/http/modifier"
 	"github.com/goharbor/harbor/src/lib"
@@ -41,8 +44,8 @@ var (
 )
 
 func init() {
-	secureHTTPTransport = http.DefaultTransport.(*http.Transport).Clone()
-	insecureHTTPTransport = http.DefaultTransport.(*http.Transport).Clone()
+	secureHTTPTransport = newDefaultTransport()
+	insecureHTTPTransport = newDefaultTransport()
 	insecureHTTPTransport.TLSClientConfig.InsecureSkipVerify = true
 
 	if InternalTLSEnabled() {
@@ -51,6 +54,24 @@ func init() {
 			panic(err)
 		}
 		secureHTTPTransport.TLSClientConfig = tlsConfig
+	}
+}
+
+// Use this instead of Default Transport in library because it sets ForceAttemptHTTP2 to true
+// And that options introduced in go 1.13 will cause the https requests hang forever in replication environment
+func newDefaultTransport() *http.Transport {
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		TLSClientConfig:       &tls.Config{},
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 }
 

@@ -5,8 +5,8 @@ import (
 
 	"github.com/goharbor/harbor/src/common/models"
 	event2 "github.com/goharbor/harbor/src/controller/event"
+	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/pkg/notifier/event"
-	"github.com/pkg/errors"
 )
 
 // QuotaMetaData defines quota related event data
@@ -34,17 +34,21 @@ func (q *QuotaMetaData) Resolve(evt *event.Event) error {
 		return errors.New("not supported quota status")
 	}
 
-	evt.Topic = topic
-	evt.Data = &event2.QuotaEvent{
+	data := &event2.QuotaEvent{
 		EventType: topic,
 		Project:   q.Project,
-		Resource: &event2.ImgResource{
+		OccurAt:   q.OccurAt,
+		RepoName:  q.RepoName,
+		Msg:       q.Msg,
+	}
+	if q.Tag != "" || q.Digest != "" {
+		data.Resource = &event2.ImgResource{
 			Tag:    q.Tag,
 			Digest: q.Digest,
-		},
-		OccurAt:  q.OccurAt,
-		RepoName: q.RepoName,
-		Msg:      q.Msg,
+		}
 	}
+
+	evt.Topic = topic
+	evt.Data = data
 	return nil
 }

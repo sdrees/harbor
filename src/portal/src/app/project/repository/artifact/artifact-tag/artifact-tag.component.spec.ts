@@ -10,10 +10,9 @@ import { ErrorHandler } from "../../../../../lib/utils/error-handler";
 import { ArtifactService } from '../../../../../../ng-swagger-gen/services/artifact.service';
 import { OperationService } from "../../../../../lib/components/operation/operation.service";
 import { CURRENT_BASE_HREF } from "../../../../../lib/utils/utils";
-import { USERSTATICPERMISSION, UserPermissionService, UserPermissionDefaultService } from '../../../../../lib/services';
-import { TagService } from '../../../../../../ng-swagger-gen/services/tag.service';
+import { USERSTATICPERMISSION, UserPermissionService, UserPermissionDefaultService, SystemInfoService } from '../../../../../lib/services';
 import { delay } from 'rxjs/operators';
-
+import { AppConfigService } from "../../../../services/app-config.service";
 
 describe('ArtifactTagComponent', () => {
   let component: ArtifactTagComponent;
@@ -21,17 +20,30 @@ describe('ArtifactTagComponent', () => {
   const mockErrorHandler = {
     error: () => {}
   };
-  const mockTagService = {
-    listTagsResponse: () => of({headers: null, body: []}).pipe(delay(0)),
-    listTags: () => of([]),
-  };
   const mockArtifactService = {
     createTag: () => of([]),
     deleteTag: () => of(null),
+    listTagsResponse: () => of([]).pipe(delay(0))
+
   };
   const config: IServiceConfig = {
     repositoryBaseEndpoint: CURRENT_BASE_HREF + "/repositories/testing"
   };
+  const mockSystemInfoService = {
+    getSystemInfo: () => of( false )
+  };
+  const mockAppConfigService = {
+    getConfig: () => {
+        return {
+            project_creation_restriction: "",
+            with_chartmuseum: "",
+            with_notary: "",
+            with_clair: "",
+            with_admiral: "",
+            registry_url: "",
+        };
+    }
+};
   let userPermissionService;
   const permissions = [
     { resource: USERSTATICPERMISSION.REPOSITORY_TAG.KEY, action: USERSTATICPERMISSION.REPOSITORY_TAG.VALUE.DELETE },
@@ -54,7 +66,8 @@ describe('ArtifactTagComponent', () => {
         { provide: SERVICE_CONFIG, useValue: config },
         { provide: mockErrorHandler, useValue: ErrorHandler },
         { provide: ArtifactService, useValue: mockArtifactService },
-        { provide: TagService, useValue: mockTagService },
+        { provide: AppConfigService, useValue: mockAppConfigService },
+        { provide: SystemInfoService, useValue: mockSystemInfoService },
         { provide: UserPermissionService, useClass: UserPermissionDefaultService },
         { provide: OperationService },
       ]

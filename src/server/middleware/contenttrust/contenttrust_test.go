@@ -23,6 +23,7 @@ import (
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/security"
 	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/controller/artifact/processor/image"
 	"github.com/goharbor/harbor/src/controller/project"
 	"github.com/goharbor/harbor/src/lib"
 	securitytesting "github.com/goharbor/harbor/src/testing/common/security"
@@ -59,7 +60,7 @@ func (suite *MiddlewareTestSuite) SetupTest() {
 
 	suite.isArtifactSigned = isArtifactSigned
 	suite.artifact = &artifact.Artifact{}
-	suite.artifact.Type = artifact.ImageType
+	suite.artifact.Type = image.ArtifactTypeImage
 	suite.artifact.ProjectID = 1
 	suite.artifact.RepositoryName = "library/photon"
 	suite.artifact.Digest = "digest"
@@ -130,6 +131,14 @@ func (suite *MiddlewareTestSuite) TestContentTrustDisabled() {
 	suite.Equal(rr.Code, http.StatusOK)
 }
 
+func (suite *MiddlewareTestSuite) TestNoneArtifact() {
+	req := httptest.NewRequest("GET", "/v1/library/photon/manifests/nonexist", nil)
+	rr := httptest.NewRecorder()
+
+	Middleware()(suite.next).ServeHTTP(rr, req)
+	suite.Equal(rr.Code, http.StatusNotFound)
+}
+
 func (suite *MiddlewareTestSuite) TestAuthenticatedUserPulling() {
 	mock.OnAnything(suite.artifactController, "GetByReference").Return(suite.artifact, nil)
 	mock.OnAnything(suite.projectController, "GetByName").Return(suite.project, nil)
@@ -150,7 +159,7 @@ func (suite *MiddlewareTestSuite) TestScannerPulling() {
 	mock.OnAnything(suite.artifactController, "GetByReference").Return(suite.artifact, nil)
 	mock.OnAnything(suite.projectController, "GetByName").Return(suite.project, nil)
 	securityCtx := &securitytesting.Context{}
-	mock.OnAnything(securityCtx, "Name").Return("robot")
+	mock.OnAnything(securityCtx, "Name").Return("v2token")
 	mock.OnAnything(securityCtx, "Can").Return(true, nil)
 	mock.OnAnything(securityCtx, "IsAuthenticated").Return(true)
 

@@ -34,7 +34,7 @@ import {
   clone,
   CustomComparator,
   DEFAULT_PAGE_SIZE, DEFAULT_SUPPORTED_MIME_TYPE,
-  formatSize, VULNERABILITY_SCAN_STATUS
+  formatSize, VULNERABILITY_SCAN_STATUS, dbEncodeURIComponent, doSorting
 } from "../../../../../../lib/utils/utils";
 import {
   ConfirmationAcknowledgement,
@@ -54,10 +54,11 @@ import {
 } from "../../../../../../lib/entities/shared.const";
 import { operateChanges, OperateInfo, OperationState } from "../../../../../../lib/components/operation/operate";
 import { errorHandler } from "../../../../../../lib/utils/shared/shared.utils";
-import { ArtifactFront as Artifact, mutipleFilter } from "../../../artifact/artifact";
+import { ArtifactFront as Artifact, mutipleFilter, artifactPullCommands } from "../../../artifact/artifact";
 import { Project } from "../../../../project";
 import { ArtifactService as NewArtifactService } from "../../../../../../../ng-swagger-gen/services/artifact.service";
 import { ADDITIONS } from "../../../artifact/artifact-additions/models";
+import { Platform } from "../../../../../../../ng-swagger-gen/models/platform";
 export interface LabelState {
   iconsShow: boolean;
   label: Label;
@@ -335,7 +336,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
       }
       if (this.artifactDigest) {
         const artifactParam: NewArtifactService.GetArtifactParams = {
-          repositoryName: this.repoName,
+          repositoryName: dbEncodeURIComponent(this.repoName),
           projectName: this.projectName,
           reference: this.artifactDigest,
           withImmutableStatus: true,
@@ -347,11 +348,12 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
         this.newArtifactService.getArtifact(artifactParam).subscribe(
           res => {
             let observableLists: Observable<Artifact>[] = [];
+            let platFormAttr: { platform: Platform }[] = [];
             this.totalCount = res.references.length;
             res.references.forEach((child, index) => {
               if (index >= (pageNumber - 1) * this.pageSize && index < pageNumber * this.pageSize) {
                 let childParams: NewArtifactService.GetArtifactParams = {
-                  repositoryName: this.repoName,
+                  repositoryName: dbEncodeURIComponent(this.repoName),
                   projectName: this.projectName,
                   reference: child.child_digest,
                   withImmutableStatus: true,
@@ -360,6 +362,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
                   withSignature: true,
                   withTag: true
                 };
+                platFormAttr.push({platform: child.platform});
                 observableLists.push(this.newArtifactService.getArtifact(childParams));
               }
             });
@@ -367,7 +370,10 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
               this.loading = false;
             })).subscribe(artifacts => {
               this.artifactList = artifacts;
-              this.getArtifactAnnotationsArray(this.artifactList);
+              this.artifactList.forEach((artifact, index) => {
+                artifact.platform = clone(platFormAttr[index].platform);
+              });
+              this.getPullCommand(this.artifactList);
             }, error => {
               this.errorHandlerService.error(error);
             });
@@ -378,7 +384,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
       } else {
         let listArtifactParams: NewArtifactService.ListArtifactsParams = {
           projectName: this.projectName,
-          repositoryName: this.repoName,
+          repositoryName: dbEncodeURIComponent(this.repoName),
           withLabel: true,
           withScanOverview: true,
           withTag: true
@@ -394,7 +400,9 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
               }
             }
             this.artifactList = res.body;
-            this.getArtifactAnnotationsArray(this.artifactList);
+            this.artifactList = doSorting<Artifact>(this.artifactList, state);
+
+            this.getPullCommand(this.artifactList);
           }, error => {
             // error
             this.errorHandlerService.error(error);
@@ -413,19 +421,16 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
     }
     this.clrLoad(st);
   }
-  getArtifactAnnotationsArray(artifactList: Artifact[]) {
+
+  getPullCommand(artifactList: Artifact[]) {
     artifactList.forEach(artifact => {
-      artifact.annotationsArray = [];
-      if (artifact.annotations) {
-        for (const key in artifact.annotations) {
-          if (artifact.annotations.hasOwnProperty(key)) {
-            const annotation = artifact.annotations[key];
-            artifact.annotationsArray.push(`${key} : ${annotation}`);
-          }
+      artifact.pullCommand = '';
+      artifactPullCommands.forEach(artifactPullCommand => {
+        if (artifactPullCommand.type === artifact.type) {
+          artifact.pullCommand =
+          `${artifactPullCommand.pullCommand} ${this.registryUrl}/${this.projectName}/${this.repoName}@${artifact.digest}`;
         }
-        // todo : cannot support Object.entries
-        // artifact.annotationsArray = Object.entries(artifact.annotations).map(item => `${item[0]} : ${item[1]}`);
-      }
+      });
     });
   }
   getAllLabels(): void {
@@ -480,7 +485,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
       this.selectedRow = this.selectedTag;
       let params: NewArtifactService.AddLabelParams = {
         projectName: this.projectName,
-        repositoryName: this.repoName,
+        repositoryName: dbEncodeURIComponent(this.repoName),
         reference: this.selectedRow[0].digest,
         label: labelInfo.label
       };
@@ -517,7 +522,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
       this.selectedRow = this.selectedTag;
       let params: NewArtifactService.RemoveLabelParams = {
         projectName: this.projectName,
-        repositoryName: this.repoName,
+        repositoryName: dbEncodeURIComponent(this.repoName),
         reference: this.selectedRow[0].digest,
         labelId: labelId
       };
@@ -675,13 +680,13 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   onRetag() {
     let params: NewArtifactService.CopyArtifactParams = {
       projectName: this.imageNameInput.projectName.value,
-      repositoryName: this.imageNameInput.repoName.value,
+      repositoryName: dbEncodeURIComponent(this.imageNameInput.repoName.value),
       from: `${this.projectName}/${this.repoName}@${this.selectedRow[0].digest}`,
     };
     this.newArtifactService.CopyArtifact(params)
       .pipe(finalize(() => {
-        this.retagDialogOpened = false;
         this.imageNameInput.form.reset();
+        this.retagDialogOpened = false;
       }))
       .subscribe(response => {
         this.translateService.get('RETAG.MSG_SUCCESS').subscribe((res: string) => {
@@ -779,7 +784,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
     // } else {
       let params: NewArtifactService.DeleteArtifactParams = {
         projectName: this.projectName,
-        repositoryName: this.repoName,
+        repositoryName: dbEncodeURIComponent(this.repoName),
         reference: artifact.digest
       };
     return this.newArtifactService
@@ -916,7 +921,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
       });
   }
 
-  handleScanOverview(scanOverview: any): VulnerabilitySummary {
+  handleScanOverview(scanOverview: any): any {
     if (scanOverview) {
       return scanOverview[DEFAULT_SUPPORTED_MIME_TYPE];
     }

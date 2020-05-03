@@ -47,7 +47,7 @@ Test Case - Disable Scan Schedule
     Close Browser
 
 Test Case - Scan A Tag In The Repo
-    Body Of Scan A Tag In The Repo Use Trivy
+    Body Of Scan A Tag In The Repo  vmware/photon  1.0
 
 Test Case - Scan As An Unprivileged User
     Init Chrome Driver
@@ -107,6 +107,7 @@ Test Case - Scan Image On Push
     Go Into Project  library
     Go Into Repo  memcached
     Summary Chart Should Display  latest
+    View Repo Scan Details
     Close Browser
 
 Test Case - View Scan Results
@@ -122,7 +123,7 @@ Test Case - View Scan Results
     Scan Repo  latest  Succeed
     Summary Chart Should Display  latest
     View Repo Scan Details
-    Close Browser 
+    Close Browser
 Test Case - Project Level Image Serverity Policy
     [Tags]  run-once
     Init Chrome Driver

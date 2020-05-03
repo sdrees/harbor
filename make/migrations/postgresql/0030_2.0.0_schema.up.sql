@@ -49,6 +49,14 @@ UPDATE artifact AS art
     )
     FROM repository AS repo, blob AS blob
     WHERE art.repo=repo.name AND art.digest=blob.digest;
+/*
+It's a workaround for issue https://github.com/goharbor/harbor/issues/11754
+
+The phenomenon is the repository data is gone, but artifacts belong to the repository are still there.
+To set the repository_id to a negative, and cannot duplicate.
+*/
+UPDATE artifact SET repository_id = 0-artifact.id, type='IMAGE', media_type='UNKNOWN', manifest_media_type='UNKNOWN' WHERE repository_id IS NULL;
+
 ALTER TABLE artifact ALTER COLUMN repository_id SET NOT NULL;
 ALTER TABLE artifact ALTER COLUMN media_type SET NOT NULL;
 ALTER TABLE artifact ALTER COLUMN manifest_media_type SET NOT NULL;
@@ -97,15 +105,6 @@ FROM (
         GROUP BY art.digest
 ) AS s
 WHERE artifact.digest=s.digest;
-
-/*repair the count usage as we calculate the count quota against artifact rather than tag*/
-/*count=count-(tag count-artifact count)*/
-UPDATE quota_usage SET used=jsonb_set(used, '{count}', ((used->>'count')::int - (SELECT (
-	SELECT COUNT (*) FROM tag
-		JOIN artifact ON tag.artifact_id=artifact.id
-		WHERE artifact.project_id=quota_usage.reference_id::int)-(
-	SELECT COUNT (*) FROM artifact
-		WHERE project_id=quota_usage.reference_id::int)))::text::jsonb);
 
 /* artifact_reference records the child artifact referenced by parent artifact */
 CREATE TABLE artifact_reference
@@ -200,8 +199,36 @@ DROP TABLE IF EXISTS access_log;
 /*remove the constraint for project_id in table 'notification_policy'*/
 ALTER TABLE notification_policy DROP CONSTRAINT unique_project_id;
 
+/*the existing policy has no name, to make sure the unique constraint for name works, use the id as name*/
+/*if the name is set via API, it will be force to be changed with new pattern*/
+UPDATE notification_policy SET name=CONCAT('policy_', id);
 /*add the unique constraint for name in table 'notification_policy'*/
 ALTER TABLE notification_policy ADD UNIQUE (name);
 
 ALTER TABLE replication_task ALTER COLUMN src_resource TYPE varchar(512);
 ALTER TABLE replication_task ALTER COLUMN dst_resource TYPE varchar(512);
+
+/*remove count from quota hard and quota_usage used json*/
+UPDATE quota SET hard = hard - 'count';
+UPDATE quota_usage SET used = used - 'count';
+
+/* make Clair and Trivy as reserved name for scanners in-tree */
+UPDATE scanner_registration SET name = concat_ws('-', name, uuid) WHERE name IN ('Clair', 'Trivy') AND immutable = FALSE;
+UPDATE scanner_registration SET name = split_part(name, '-', 1) WHERE immutable = TRUE;
+
+/*update event types in table 'notification_policy'*/
+UPDATE notification_policy SET event_types = '["DOWNLOAD_CHART","DELETE_CHART","UPLOAD_CHART","DELETE_ARTIFACT","PULL_ARTIFACT","PUSH_ARTIFACT","SCANNING_FAILED","SCANNING_COMPLETED"]';
+
+/*update event type in table 'notification_job'*/
+UPDATE notification_job
+SET event_type = CASE
+	WHEN notification_job.event_type = 'downloadChart' THEN 'DOWNLOAD_CHART'
+	WHEN notification_job.event_type = 'deleteChart' THEN 'DELETE_CHART'
+	WHEN notification_job.event_type = 'uploadChart' THEN 'UPLOAD_CHART'
+	WHEN notification_job.event_type = 'deleteImage' THEN 'DELETE_ARTIFACT'
+	WHEN notification_job.event_type = 'pullImage' THEN 'PULL_ARTIFACT'
+	WHEN notification_job.event_type = 'pushImage' THEN 'PUSH_ARTIFACT'
+	WHEN notification_job.event_type = 'scanningFailed' THEN 'SCANNING_FAILED'
+	WHEN notification_job.event_type = 'scanningCompleted' THEN 'SCANNING_COMPLETED'
+	ELSE event_type
+END;

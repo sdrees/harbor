@@ -10,12 +10,14 @@ schemes:
 basePath: /api/v2.0
 produces:
   - application/json
-  - text/plain
 consumes:
   - application/json
 securityDefinitions:
-  basicAuth:
+  basic:
     type: basic
+security:
+  - basic: []
+  - {}
 paths:
   /projects/{project_name}/repositories:
     get:
@@ -54,11 +56,7 @@ paths:
           $ref: '#/responses/404'
         '500':
           $ref: '#/responses/500'
-  # the _self suffix here is used to avoid the conflict of repository name and URL path
-  # e.g. the repository name can be "library/artifacts", we cannot distinguish the URL
-  # "GET /projects/{project_name}/repositories/library/artifacts" is getting repository
-  # or listing artifacts
-  /projects/{project_name}/repositories/{repository_name}/_self:
+  /projects/{project_name}/repositories/{repository_name}:
     get:
       summary: Get repository
       description: Get the repository specified by name
@@ -139,7 +137,7 @@ paths:
   /projects/{project_name}/repositories/{repository_name}/artifacts:
     get:
       summary: List artifacts
-      description: List artifacts under the specific project and repository. Except the basic properties, the other supported queries in "q" includes "tags=*" to list only tagged artifacts, "tags=nil" to list only untagged artifacts, "tags=~v" to list artifacts whose tag fuzzy matches "v", "labels=(id1, id2)" to list artifacts that both labels with id1 and id2 are added to
+      description: List artifacts under the specific project and repository. Except the basic properties, the other supported queries in "q" includes "tags=*" to list only tagged artifacts, "tags=nil" to list only untagged artifacts, "tags=~v" to list artifacts whose tag fuzzy matches "v", "tags=v" to list artifact whose tag exactly matches "v", "labels=(id1, id2)" to list artifacts that both labels with id1 and id2 are added to
       tags:
         - artifact
       operationId: listArtifacts
@@ -230,8 +228,6 @@ paths:
           $ref: '#/responses/403'
         '404':
           $ref: '#/responses/404'
-        '409':
-          $ref: '#/responses/409'
         '500':
           $ref: '#/responses/500'
   /projects/{project_name}/repositories/{repository_name}/artifacts/{reference}:
@@ -404,6 +400,56 @@ paths:
           $ref: '#/responses/409'
         '500':
           $ref: '#/responses/500'
+    get:
+      summary: List tags
+      description: List tags of the specific artifact
+      tags:
+        - artifact
+      operationId: listTags
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - $ref: '#/parameters/projectName'
+        - $ref: '#/parameters/repositoryName'
+        - $ref: '#/parameters/reference'
+        - $ref: '#/parameters/query'
+        - $ref: '#/parameters/page'
+        - $ref: '#/parameters/pageSize'
+        - name: with_signature
+          in: query
+          description: Specify whether the signature is included inside the returning tags
+          type: boolean
+          required: false
+          default: false
+        - name: with_immutable_status
+          in: query
+          description: Specify whether the immutable status is included inside the returning tags
+          type: boolean
+          required: false
+          default: false
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Total-Count:
+              description: The total count of tags
+              type: integer
+            Link:
+              description: Link refers to the previous page and next page
+              type: string
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Tag'
+        '400':
+          $ref: '#/responses/400'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '404':
+          $ref: '#/responses/404'
+        '500':
+          $ref: '#/responses/500'
   /projects/{project_name}/repositories/{repository_name}/artifacts/{reference}/tags/{tag_name}:
     delete:
       summary: Delete tag
@@ -529,56 +575,6 @@ paths:
           $ref: '#/responses/409'
         '500':
           $ref: '#/responses/500'
-  /projects/{project_name}/repositories/{repository_name}/tags:
-    get:
-      summary: List tags
-      description: List tags under the specific project and repository.
-      tags:
-        - tag
-      operationId: listTags
-      parameters:
-        - $ref: '#/parameters/requestId'
-        - $ref: '#/parameters/projectName'
-        - $ref: '#/parameters/repositoryName'
-        - $ref: '#/parameters/query'
-        - $ref: '#/parameters/page'
-        - $ref: '#/parameters/pageSize'
-        - name: with_signature
-          in: query
-          description: Specify whether the signature is included inside the returning tags
-          type: boolean
-          required: false
-          default: false
-        - name: with_immutable_status
-          in: query
-          description: Specify whether the immutable status is included inside the returning tags
-          type: boolean
-          required: false
-          default: false
-      responses:
-        '200':
-          description: Success
-          headers:
-            X-Total-Count:
-              description: The total count of tags
-              type: integer
-            Link:
-              description: Link refers to the previous page and next page
-              type: string
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/Tag'
-        '400':
-          $ref: '#/responses/400'
-        '401':
-          $ref: '#/responses/401'
-        '403':
-          $ref: '#/responses/403'
-        '404':
-          $ref: '#/responses/404'
-        '500':
-          $ref: '#/responses/500'
   /audit-logs:
     get:
       summary: Get recent logs of the projects which the user is a member of
@@ -648,7 +644,7 @@ paths:
 parameters:
   query:
     name: q
-    description: Query string to query resources. Supported query patterns are "exact match(k=v)", "fuzzy match(k=~v)", "range(k=[min~max])", "list with union releationship(k={v1 v2 v3})" and "list with intersetion relationship(k=(v1 v2 v3))". All of these query patterns should be put in the query string "q=xxx" and splitted by ",". e.g. q=k1=v1,k2=~v2,k3=[min~max]
+    description: Query string to query resources. Supported query patterns are "exact match(k=v)", "fuzzy match(k=~v)", "range(k=[min~max])", "list with union releationship(k={v1 v2 v3})" and "list with intersetion relationship(k=(v1 v2 v3))". The value of range and list can be string(enclosed by " or '), integer or time(in format "2020-04-09 02:36:00"). All of these query patterns should be put in the query string "q=xxx" and splitted by ",". e.g. q=k1=v1,k2=~v2,k3=[min~max]
     in: query
     type: string
     required: false
@@ -674,7 +670,7 @@ parameters:
   repositoryName:
     name: repository_name
     in: path
-    description: The name of the repository
+    description: The name of the repository. If it contains slash, encode it with URL encoding. e.g. a/b -> a%252Fb
     required: true
     type: string
   reference:

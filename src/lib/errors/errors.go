@@ -18,8 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
-
 	"github.com/goharbor/harbor/src/lib/log"
 )
 
@@ -35,27 +33,33 @@ type Error struct {
 	Cause   error  `json:"-"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	Stack   *stack `json:"-"`
 }
 
-// Error returns a human readable error.
+// Error returns a human readable error, error.Error() will not contains the track information. Needs it? just call error.StackTrace()
+// Code will not be in the error output.
 func (e *Error) Error() string {
-	var parts []string
-
-	var causeStr string
+	out := e.Message
 	if e.Cause != nil {
-		causeStr = e.Cause.Error()
-		parts = append(parts, causeStr)
+		out = out + ": " + e.Cause.Error()
 	}
+	return out
+}
 
-	if e.Code != "" {
-		parts = append(parts, e.Code)
-	}
+// StackTrace ...
+func (e *Error) StackTrace() string {
+	return e.Stack.frames().format()
+}
 
-	if e.Message != causeStr {
-		parts = append(parts, e.Message)
-	}
-
-	return strings.Join(parts, ", ")
+// MarshalJSON ...
+func (e *Error) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}{
+		Code:    e.Code,
+		Message: e.Error(),
+	})
 }
 
 // WithMessage ...
@@ -93,7 +97,7 @@ func (errs Errors) Error() string {
 	for _, e := range errs {
 		err, ok := e.(*Error)
 		if !ok {
-			err = UnknownError(e).WithMessage(e.Error())
+			err = UnknownError(e)
 		}
 		if err.Code == "" {
 			err.Code = GeneralCode
@@ -120,31 +124,6 @@ func NewErrs(err error) Errors {
 	return Errors{err}
 }
 
-const (
-	// NotFoundCode is code for the error of no object found
-	NotFoundCode = "NOT_FOUND"
-	// ConflictCode ...
-	ConflictCode = "CONFLICT"
-	// UnAuthorizedCode ...
-	UnAuthorizedCode = "UNAUTHORIZED"
-	// BadRequestCode ...
-	BadRequestCode = "BAD_REQUEST"
-	// ForbiddenCode ...
-	ForbiddenCode = "FORBIDDEN"
-	// PreconditionCode ...
-	PreconditionCode = "PRECONDITION"
-	// GeneralCode ...
-	GeneralCode = "UNKNOWN"
-	// DENIED it's used by middleware(readonly, vul and content trust) and returned to docker client to index the request is denied.
-	DENIED = "DENIED"
-	// PROJECTPOLICYVIOLATION ...
-	PROJECTPOLICYVIOLATION = "PROJECTPOLICYVIOLATION"
-	// ViolateForeignKeyConstraintCode is the error code for violating foreign key constraint error
-	ViolateForeignKeyConstraintCode = "VIOLATE_FOREIGN_KEY_CONSTRAINT"
-	// DIGESTINVALID ...
-	DIGESTINVALID = "DIGEST_INVALID"
-)
-
 // New ...
 func New(in interface{}) *Error {
 	var err error
@@ -156,9 +135,10 @@ func New(in interface{}) *Error {
 	default:
 		err = fmt.Errorf("%v", in)
 	}
+
 	return &Error{
-		Cause:   err,
 		Message: err.Error(),
+		Stack:   newStack(),
 	}
 }
 
@@ -170,6 +150,7 @@ func Wrap(err error, message string) *Error {
 	e := &Error{
 		Cause:   err,
 		Message: message,
+		Stack:   newStack(),
 	}
 	return e
 }
@@ -180,56 +161,19 @@ func Wrapf(err error, format string, args ...interface{}) *Error {
 		return nil
 	}
 	e := &Error{
-		Cause: err,
+		Cause:   err,
+		Message: fmt.Sprintf(format, args...),
+		Stack:   newStack(),
 	}
-	return e.WithMessage(format, args...)
+	return e
 }
 
 // Errorf ...
 func Errorf(format string, args ...interface{}) *Error {
 	return &Error{
 		Message: fmt.Sprintf(format, args...),
+		Stack:   newStack(),
 	}
-}
-
-// NotFoundError is error for the case of object not found
-func NotFoundError(err error) *Error {
-	return New(err).WithCode(NotFoundCode).WithMessage("resource not found")
-}
-
-// ConflictError is error for the case of object conflict
-func ConflictError(err error) *Error {
-	return New(err).WithCode(ConflictCode).WithMessage("resource conflict")
-}
-
-// DeniedError is error for the case of denied
-func DeniedError(err error) *Error {
-	return New(err).WithCode(DENIED).WithMessage("denied")
-}
-
-// UnauthorizedError is error for the case of unauthorized accessing
-func UnauthorizedError(err error) *Error {
-	return New(err).WithCode(UnAuthorizedCode).WithMessage("unauthorized")
-}
-
-// BadRequestError is error for the case of bad request
-func BadRequestError(err error) *Error {
-	return New(err).WithCode(BadRequestCode).WithMessage("bad request")
-}
-
-// ForbiddenError is error for the case of forbidden
-func ForbiddenError(err error) *Error {
-	return New(err).WithCode(ForbiddenCode).WithMessage("forbidden")
-}
-
-// PreconditionFailedError is error for the case of precondition failed
-func PreconditionFailedError(err error) *Error {
-	return New(err).WithCode(PreconditionCode).WithMessage("precondition failed")
-}
-
-// UnknownError ...
-func UnknownError(err error) *Error {
-	return New(err).WithCode(GeneralCode).WithMessage("unknown")
 }
 
 // Cause gets the root error
@@ -237,6 +181,9 @@ func Cause(err error) error {
 	for err != nil {
 		cause, ok := err.(*Error)
 		if !ok {
+			break
+		}
+		if cause.Cause == nil {
 			break
 		}
 		err = cause.Cause
@@ -247,20 +194,10 @@ func Cause(err error) error {
 // IsErr checks whether the err chain contains error matches the code
 func IsErr(err error, code string) bool {
 	var e *Error
-	if errors.As(err, &e) {
+	if As(err, &e) {
 		return e.Code == code
 	}
 	return false
-}
-
-// IsNotFoundErr returns true when the error is NotFoundError
-func IsNotFoundErr(err error) bool {
-	return IsErr(err, NotFoundCode)
-}
-
-// IsConflictErr checks whether the err chain contains conflict error
-func IsConflictErr(err error) bool {
-	return IsErr(err, ConflictCode)
 }
 
 // ErrCode returns code of err
@@ -270,7 +207,7 @@ func ErrCode(err error) string {
 	}
 
 	var e *Error
-	if ok := errors.As(err, &e); ok && e.Code != "" {
+	if ok := As(err, &e); ok && e.Code != "" {
 		return e.Code
 	} else if ok && e.Cause != nil {
 		return ErrCode(e.Cause)

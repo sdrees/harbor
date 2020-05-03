@@ -21,7 +21,6 @@ import (
 	"github.com/goharbor/harbor/src/pkg/types"
 	artifacttesting "github.com/goharbor/harbor/src/testing/controller/artifact"
 	blobtesting "github.com/goharbor/harbor/src/testing/controller/blob"
-	charttesting "github.com/goharbor/harbor/src/testing/controller/chartmuseum"
 	"github.com/goharbor/harbor/src/testing/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -31,7 +30,6 @@ type DriverTestSuite struct {
 
 	artifactCtl *artifacttesting.Controller
 	blobCtl     *blobtesting.Controller
-	chartCtl    *charttesting.Controller
 
 	d *driver
 }
@@ -39,26 +37,21 @@ type DriverTestSuite struct {
 func (suite *DriverTestSuite) SetupTest() {
 	suite.artifactCtl = &artifacttesting.Controller{}
 	suite.blobCtl = &blobtesting.Controller{}
-	suite.chartCtl = &charttesting.Controller{}
 
 	suite.d = &driver{
-		artifactCtl: suite.artifactCtl,
-		blobCtl:     suite.blobCtl,
-		chartCtl:    suite.chartCtl,
+		blobCtl: suite.blobCtl,
 	}
 }
 
 func (suite *DriverTestSuite) TestCalculateUsage() {
 
 	{
-		mock.OnAnything(suite.artifactCtl, "Count").Return(int64(10), nil).Once()
 		mock.OnAnything(suite.blobCtl, "CalculateTotalSizeByProject").Return(int64(1000), nil).Once()
-		mock.OnAnything(suite.chartCtl, "Count").Return(int64(10), nil).Once()
 
 		resources, err := suite.d.CalculateUsage(context.TODO(), "1")
 		if suite.Nil(err) {
-			suite.Len(resources, 2)
-			suite.Equal(resources[types.ResourceCount], int64(20))
+			suite.Len(resources, 1)
+			suite.Equal(resources[types.ResourceStorage], int64(1000))
 		}
 	}
 }

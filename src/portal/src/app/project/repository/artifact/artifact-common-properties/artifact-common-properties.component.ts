@@ -33,11 +33,15 @@ export class ArtifactCommonPropertiesComponent implements OnInit, OnChanges {
   ngOnChanges(changes: SimpleChanges) {
     if (changes && changes["artifactDetails"]) {
       if (this.artifactDetails) {
-        Object.assign(this.commonProperties, this.artifactDetails.extra_attrs);
+        Object.assign(this.commonProperties, this.artifactDetails.extra_attrs, this.artifactDetails.annotations);
         for (let name in this.commonProperties) {
           if (this.commonProperties.hasOwnProperty(name)) {
             if (typeof (this.commonProperties[name]) === 'object') {
-              this.commonProperties[name] = JSON.stringify(this.commonProperties[name]);
+              if (this.commonProperties[name] === null) {
+                this.commonProperties[name] = '';
+              } else {
+                this.commonProperties[name] = JSON.stringify(this.commonProperties[name]);
+              }
             }
             if (name === Types.CREATED) {
               this.commonProperties[name] = new DatePipe(this.translate.currentLang)

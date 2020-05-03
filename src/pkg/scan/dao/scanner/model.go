@@ -20,9 +20,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/pkg/scan/rest/auth"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
-	"github.com/pkg/errors"
+)
+
+const (
+	authorizationType   = "harbor.scanner-adapter/registry-authorization-type"
+	authorizationBearer = "Bearer"
+	authorizationBasic  = "Basic"
 )
 
 // Registration represents a named configuration for invoking a scanner via its adapter.
@@ -176,6 +182,22 @@ func (r *Registration) GetCapability(mimeType string) *v1.ScannerCapability {
 	}
 
 	return nil
+}
+
+// GetRegistryAuthorizationType returns the registry authorization type of the scanner
+func (r *Registration) GetRegistryAuthorizationType() string {
+	var auth string
+	if r.Metadata != nil && r.Metadata.Properties != nil {
+		if v, ok := r.Metadata.Properties[authorizationType]; ok {
+			auth = v
+		}
+	}
+
+	if auth != authorizationBasic && auth != authorizationBearer {
+		auth = authorizationBasic
+	}
+
+	return auth
 }
 
 // Check the registration URL with url package

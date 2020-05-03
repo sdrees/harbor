@@ -43,7 +43,7 @@ Test Case - Disable Scan Schedule
     Close Browser
 
 Test Case - Scan A Tag In The Repo
-    Body Of Scan A Tag In The Repo
+    Body Of Scan A Tag In The Repo  hello-world  latest
 
 Test Case - Scan As An Unprivileged User
     Init Chrome Driver
@@ -105,6 +105,7 @@ Test Case - Scan Image On Push
     Go Into Project  library
     Go Into Repo  memcached
     Summary Chart Should Display  latest
+    View Repo Scan Details
     Close Browser
 
 Test Case - View Scan Results

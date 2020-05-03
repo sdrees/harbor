@@ -18,9 +18,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/goharbor/harbor/src/common/rbac"
-	"github.com/goharbor/harbor/src/common/security"
-	"github.com/goharbor/harbor/src/controller/artifact"
+	"github.com/goharbor/harbor/src/controller/artifact/processor/cnab"
+	"github.com/goharbor/harbor/src/controller/artifact/processor/image"
 	"github.com/goharbor/harbor/src/controller/project"
 	"github.com/goharbor/harbor/src/controller/scan"
 	"github.com/goharbor/harbor/src/lib"
@@ -30,6 +29,7 @@ import (
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
 	"github.com/goharbor/harbor/src/pkg/scan/vuln"
 	"github.com/goharbor/harbor/src/server/middleware"
+	"github.com/goharbor/harbor/src/server/middleware/util"
 )
 
 var (
@@ -48,7 +48,7 @@ func Middleware() func(http.Handler) http.Handler {
 		none := lib.ArtifactInfo{}
 		info := lib.GetArtifactInfo(ctx)
 		if info == none {
-			return fmt.Errorf("artifactinfo middleware required before this middleware")
+			return errors.New("artifactinfo middleware required before this middleware").WithCode(errors.NotFoundCode)
 		}
 
 		art, err := artifactController.GetByReference(ctx, info.Repository, info.Reference, nil)
@@ -71,10 +71,7 @@ func Middleware() func(http.Handler) http.Handler {
 			return nil
 		}
 
-		securityCtx, ok := security.FromContext(ctx)
-		if ok &&
-			securityCtx.Name() == "robot" &&
-			securityCtx.Can(rbac.ActionScannerPull, rbac.NewProjectNamespace(proj.ProjectID).Resource(rbac.ResourceRepository)) {
+		if util.SkipPolicyChecking(ctx, proj.ProjectID) {
 			// the artifact is pulling by the scanner, skip the checking
 			logger.Debugf("artifact %s@%s is pulling by the scanner, skip the checking", art.RepositoryName, art.Digest)
 			return nil
@@ -118,7 +115,7 @@ func Middleware() func(http.Handler) http.Handler {
 
 		if art.IsImageIndex() {
 			// artifact is image index, skip the checking when it is in the whitelist
-			skippingWhitelist := []string{artifact.ImageType, artifact.CNABType}
+			skippingWhitelist := []string{image.ArtifactTypeImage, cnab.ArtifactTypeCNAB}
 			for _, t := range skippingWhitelist {
 				if art.Type == t {
 					logger.Debugf("artifact %s@%s is image index and its type is %s in skipping whitelist, "+
@@ -143,8 +140,13 @@ func Middleware() func(http.Handler) http.Handler {
 
 		// Do judgement
 		if summary.Severity.Code() >= projectSeverity.Code() {
-			msg := fmt.Sprintf(`current image with %d vulnerabilities cannot be pulled due to configured policy in 'Prevent images with vulnerability severity of "%s" or higher from running.' `+
-				`To continue with pull, please contact your project administrator to exempt matched vulnerabilities through configuring the CVE whitelist.`, summary.TotalCount, projectSeverity)
+			thing := "vulnerability"
+			if summary.Summary.Total > 1 {
+				thing = "vulnerabilities"
+			}
+			msg := fmt.Sprintf(`current image with %d %s cannot be pulled due to configured policy in 'Prevent images with vulnerability severity of "%s" or higher from running.' `+
+				`To continue with pull, please contact your project administrator to exempt matched vulnerabilities through configuring the CVE whitelist.`,
+				summary.Summary.Total, thing, projectSeverity)
 			return errors.New(nil).WithCode(errors.PROJECTPOLICYVIOLATION).WithMessage(msg)
 		}
 

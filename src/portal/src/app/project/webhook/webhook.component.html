@@ -17,11 +17,11 @@
                                   <span id="toggle-webhook">
                                        <span *ngIf="selectedRow[0] && !selectedRow[0].enabled">
                                            <clr-icon class="margin-top-2" size="16" shape="success-standard"></clr-icon>
-                                           <span class="margin-left-10">{{'WEBHOOK.ENABLE' | translate}}</span>
+                                           <span class="margin-left-10">{{'WEBHOOK.ENABLED_BUTTON' | translate}}</span>
                                        </span>
                                        <span *ngIf="!(selectedRow[0] && !selectedRow[0].enabled)">
                                            <clr-icon class="margin-top-2" size="16" shape="ban"></clr-icon>
-                                          <span class="margin-left-10">{{'WEBHOOK.DISABLE' | translate}}</span>
+                                          <span class="margin-left-10">{{'WEBHOOK.DISABLED_BUTTON' | translate}}</span>
                                        </span>
                                   </span>
                             </button>
@@ -73,15 +73,15 @@
             </clr-dg-cell>
             <clr-dg-cell>{{w?.targets[0].type}}</clr-dg-cell>
             <clr-dg-cell>{{w?.targets[0].address}}</clr-dg-cell>
-            <clr-dg-cell>
+            <clr-dg-cell class="event-types">
                 <div class="cell" *ngIf="w?.event_types?.length">
                     <div  class="bar-state">
-                        <span class="label" *ngIf="w?.event_types[0]">{{eventTypeToText(w?.event_types[0])}}</span>
+                        <span class="label-flex" *ngIf="w?.event_types[0]">{{eventTypeToText(w?.event_types[0])}}</span>
                     </div>
                     <div class="signpost-item" [hidden]="w?.event_types?.length<=1">
                         <div class="trigger-item">
                             <clr-signpost>
-                                <button class="btn btn-link font-size-20" clrSignpostTrigger>...</button>
+                                <button class="btn btn-link ellipsis-btn font-size-20" clrSignpostTrigger>...</button>
                                 <clr-signpost-content [clrPosition]="'left-top'" *clrIfOpen>
                                     <div>
                                         <div  *ngFor="let e of w?.event_types" class="bar-state">

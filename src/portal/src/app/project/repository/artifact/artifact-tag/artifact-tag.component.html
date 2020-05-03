@@ -2,10 +2,10 @@
 
 <clr-datagrid [clrDgLoading]="loading" (clrDgRefresh)="getCurrentArtifactTags($event)"  [(clrDgSelected)]="selectedRow" [clrDgRowSelection]="true">
     <clr-dg-action-bar>
-        <button type="button" [disabled]="!hasCreateTagPermission" class="btn btn-secondary" (click)="addTag()">
+        <button id="new-tag" type="button" [disabled]="!hasCreateTagPermission" class="btn btn-secondary" (click)="addTag()">
             <clr-icon shape="plus" size="16"></clr-icon>&nbsp;{{'TAG.ADD_TAG' | translate}}
         </button>
-        <button type="button" class="btn btn-secondary" [disabled]="!(selectedRow.length>=1&& !hasImmutableOnTag() && hasDeleteTagPermission)" (click)="removeTag()">
+        <button id="delete-tag" type="button" class="btn btn-secondary" [disabled]="!(selectedRow.length>=1&& !hasImmutableOnTag() && hasDeleteTagPermission)" (click)="removeTag()">
             <clr-icon shape="trash" size="16"></clr-icon>&nbsp;{{'TAG.REMOVE_TAG' | translate}}
         </button>
         <span class="refresh-btn" (click)="refresh()">
@@ -18,10 +18,12 @@
                     <label class="clr-control-container" [class.clr-error]="isTagNameExist || name.hasError('pattern')">
                         <input clrInput type="text" id="name" name="name" required size="20" autocomplete="off"
                             [(ngModel)]="newTagName.name" #name="ngModel" pattern="^[\w][\w.-]{0,127}$" (keyup)="existValid(newTagName.name)">
-                        <clr-control-error class="position-ab" *ngIf="isTagNameExist">
+                        <span class="spinner spinner-inline spinner-tag" [hidden]="!tagNameCheckOnGoing"></span>
+
+                        <clr-control-error class="position-ab white-space-nowrap" *ngIf="isTagNameExist">
                             {{'TAG.NAME_ALREADY_EXISTS' | translate }}
                         </clr-control-error>
-                        <clr-control-error class="position-ab" *ngIf="name.hasError('pattern')">
+                        <clr-control-error class="position-ab white-space-nowrap" *ngIf="name.hasError('pattern')">
                             {{'RETAG.TIP_TAG' | translate }}
                         </clr-control-error>
                     </label>
@@ -30,8 +32,8 @@
                     <button type="button" class="btn btn-sm btn-outline" (click)="cancelAddTag()">{{
                                         'BUTTON.CANCEL' | translate }}
                     </button>
-                    <button type="submit" class="btn btn-sm btn-primary" (click)="saveAddTag()"
-                        [disabled]="isTagNameExist || !newTagName.name ||tagForm.invalid">{{
+                    <button id="add-ok" type="submit" class="btn btn-sm btn-primary" (click)="saveAddTag()"
+                        [disabled]="isTagNameExist || tagNameCheckOnGoing || !newTagName.name ||tagForm.invalid">{{
                                         'BUTTON.OK' | translate }}
                     </button>
                 </label>
@@ -39,7 +41,7 @@
         </form>
     </clr-dg-action-bar>
     <clr-dg-column [clrDgField]="'name'">{{'TAG.NAME' | translate}}</clr-dg-column>
-    <clr-dg-column >{{'REPOSITORY.SIGNED' | translate}}</clr-dg-column>
+    <clr-dg-column *ngIf="withNotary">{{'REPOSITORY.SIGNED' | translate}}</clr-dg-column>
     <clr-dg-column>{{'TAG.PULL_TIME' | translate}}</clr-dg-column>
     <clr-dg-column>{{'TAG.PUSH_TIME' | translate}}</clr-dg-column>
 
@@ -50,7 +52,7 @@
                 <span *ngIf="tag.immutable" class="label label-info ml-8">{{'REPOSITORY.IMMUTABLE' | translate}}</span>
             </div>
         </clr-dg-cell>
-        <clr-dg-cell [ngSwitch]="tag.signed">
+        <clr-dg-cell  *ngIf="withNotary" [ngSwitch]="tag.signed">
             <div class="cell">
                 <clr-icon shape="check-circle" *ngSwitchCase="true" size="20" class="color-green"></clr-icon>
                 <clr-icon shape="times-circle" *ngSwitchCase="false" size="16" class="color-red"></clr-icon>

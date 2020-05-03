@@ -53,34 +53,19 @@ Body Of Manage project publicity
     Close Browser
 
 Body Of Scan A Tag In The Repo
+    [Arguments]  ${image_argument}  ${tag_argument}
     Init Chrome Driver
     ${d}=  get current date  result_format=%m%s
 
     Sign In Harbor  ${HARBOR_URL}  user023  Test1@34
     Create An New Project  project${d}
     Go Into Project  project${d}  has_image=${false}
-    Push Image  ${ip}  user023  Test1@34  project${d}  hello-world
+    Push Image  ${ip}  user023  Test1@34  project${d}  ${image_argument}:${tag_argument}
     Go Into Project  project${d}
-    Go Into Repo  project${d}/hello-world
-    Scan Repo  latest  Succeed
-    Summary Chart Should Display  latest
-    Pull Image  ${ip}  user023  Test1@34  project${d}  hello-world
-    # Edit Repo Info
-    Close Browser
-
-Body Of Scan A Tag In The Repo Use Trivy
-    Init Chrome Driver
-    ${d}=  get current date  result_format=%m%s
-
-    Sign In Harbor  ${HARBOR_URL}  user023  Test1@34
-    Create An New Project  project${d}
-    Go Into Project  project${d}  has_image=${false}
-    Push Image  ${ip}  user023  Test1@34  project${d}  vmware/photon:1.0
-    Go Into Project  project${d}
-    Go Into Repo  project${d}/vmware/photon
-    Scan Repo  1.0  Succeed
-    Summary Chart Should Display  1.0
-    Pull Image  ${ip}  user023  Test1@34  project${d}  vmware/photon  1.0
+    Go Into Repo  project${d}/${image_argument}
+    Scan Repo  ${tag_argument}  Succeed
+    Summary Chart Should Display  ${tag_argument}
+    Pull Image  ${ip}  user023  Test1@34  project${d}  ${image_argument}  ${tag_argument}
     # Edit Repo Info
     Close Browser
 
@@ -133,13 +118,14 @@ Body Of Admin Push Signed Image
 Delete A Project Without Sign In Harbor
     [Arguments]  ${harbor_ip}=${ip}  ${username}=${HARBOR_ADMIN}  ${password}=${HARBOR_PASSWORD}
     ${d}=    Get Current Date    result_format=%m%s
-    Create An New Project  project${d}
-    Push Image  ${harbor_ip}  ${username}  ${password}  project${d}  hello-world
-    Project Should Not Be Deleted  project${d}
-    Go Into Project  project${d}
-    Delete Repo  project${d}
+    ${project_name}=  Set Variable  000${d}
+    Create An New Project  ${project_name}
+    Push Image  ${harbor_ip}  ${username}  ${password}  ${project_name}  hello-world
+    Project Should Not Be Deleted  ${project_name}
+    Go Into Project  ${project_name}
+    Delete Repo  ${project_name}
     Navigate To Projects
-    Project Should Be Deleted  project${d}
+    Project Should Be Deleted  ${project_name}
 
 Manage Project Member Without Sign In Harbor
     [Arguments]  ${sign_in_user}  ${sign_in_pwd}  ${test_user1}=user005  ${test_user2}=user006  ${is_oidc_mode}=${false}

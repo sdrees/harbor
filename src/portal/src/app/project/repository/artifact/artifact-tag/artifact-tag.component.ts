@@ -1,6 +1,6 @@
-import { Component, OnInit, Input, ViewChild, Output, EventEmitter } from '@angular/core';
-import { Observable, of, forkJoin } from 'rxjs';
-import { map, catchError, finalize } from 'rxjs/operators';
+import { Component, OnInit, Input, ViewChild, OnDestroy } from '@angular/core';
+import { Observable, of, forkJoin, Subject, Subscription } from 'rxjs';
+import { map, catchError, finalize, debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
 import { TranslateService } from '@ngx-translate/core';
 import { NgForm } from '@angular/forms';
 import { AVAILABLE_TIME } from "../../artifact-list-page/artifact-list/artifact-list-tab/artifact-list-tab.component";
@@ -16,24 +16,31 @@ import { operateChanges, OperateInfo, OperationState } from "../../../../../lib/
 import { errorHandler } from "../../../../../lib/utils/shared/shared.utils";
 import { ArtifactFront as Artifact } from "../artifact";
 import { ArtifactService } from '../../../../../../ng-swagger-gen/services/artifact.service';
-import { TagService } from '../../../../../../ng-swagger-gen/services/tag.service';
 import { Tag } from '../../../../../../ng-swagger-gen/models/tag';
 import {
-  UserPermissionService, USERSTATICPERMISSION
+  UserPermissionService, USERSTATICPERMISSION, SystemInfoService, SystemInfo
 } from "../../../../../lib/services";
 import { ClrDatagridStateInterface } from '@clr/angular';
-import { DEFAULT_PAGE_SIZE, calculatePage } from '../../../../../lib/utils/utils';
+import {
+  DEFAULT_PAGE_SIZE,
+  calculatePage,
+  dbEncodeURIComponent,
+  doFiltering,
+  doSorting
+} from '../../../../../lib/utils/utils';
+import { AppConfigService } from "../../../../services/app-config.service";
 
 class InitTag {
   name = "";
 }
+const DeleteTagWithNotoryCommand1 = 'notary -s https://';
+const DeleteTagWithNotoryCommand2 = ':4443 -d ~/.docker/trust remove -p ';
 @Component({
   selector: 'artifact-tag',
   templateUrl: './artifact-tag.component.html',
   styleUrls: ['./artifact-tag.component.scss']
 })
-
-export class ArtifactTagComponent implements OnInit {
+export class ArtifactTagComponent implements OnInit, OnDestroy {
   @Input() artifactDetails: Artifact;
   @Input() projectName: string;
   @Input() projectId: number;
@@ -57,18 +64,57 @@ export class ArtifactTagComponent implements OnInit {
   currentTags: Tag[] = [];
   pageSize: number = DEFAULT_PAGE_SIZE;
   currentPage = 1;
+  tagNameChecker: Subject<string> = new Subject<string>();
+  tagNameCheckSub: Subscription;
+  tagNameCheckOnGoing = false;
+  systemInfo: SystemInfo;
   constructor(
     private operationService: OperationService,
     private artifactService: ArtifactService,
-    private tagService: TagService,
     private translateService: TranslateService,
     private userPermissionService: UserPermissionService,
+    private systemInfoService: SystemInfoService,
+    private appConfigService: AppConfigService,
     private errorHandlerService: ErrorHandler
 
   ) { }
   ngOnInit() {
     this.getImagePermissionRule(this.projectId);
-    this.getAllTags();
+    this.invalidCreateTag();
+    this.systemInfoService.getSystemInfo()
+      .subscribe(systemInfo => this.systemInfo = systemInfo, error => this.errorHandlerService.error(error));
+  }
+  checkTagName(name) {
+      let listArtifactParams: ArtifactService.ListArtifactsParams = {
+        projectName: this.projectName,
+        repositoryName: dbEncodeURIComponent(this.repositoryName),
+        withLabel: true,
+        withScanOverview: true,
+        withTag: true,
+        q: encodeURIComponent(`tags=${name}`)
+      };
+      return this.artifactService.listArtifacts(listArtifactParams)
+      .pipe(finalize(() => this.tagNameCheckOnGoing = false));
+  }
+  invalidCreateTag() {
+    if (!this.tagNameCheckSub) {
+      this.tagNameCheckSub = this.tagNameChecker
+        .pipe(debounceTime(200))
+        .pipe(distinctUntilChanged())
+        .pipe(switchMap(name => {
+          this.tagNameCheckOnGoing = true;
+          this.isTagNameExist = false;
+          return this.checkTagName(name);
+        }))
+        .subscribe(response => {
+        // tag existing
+        if (response && response.length) {
+            this.isTagNameExist = true;
+        }
+        }, error => {
+          this.errorHandlerService.error(error);
+        });
+    }
   }
   getCurrentArtifactTags(state: ClrDatagridStateInterface) {
     if (!state || !state.page) {
@@ -76,16 +122,16 @@ export class ArtifactTagComponent implements OnInit {
     }
     let pageNumber: number = calculatePage(state);
       if (pageNumber <= 0) { pageNumber = 1; }
-    let params: TagService.ListTagsParams = {
+    let params: ArtifactService.ListTagsParams = {
       projectName: this.projectName,
-      repositoryName: this.repositoryName,
+      repositoryName: dbEncodeURIComponent(this.repositoryName),
+      reference: this.artifactDetails.digest,
       page: pageNumber,
       withSignature: true,
       withImmutableStatus: true,
-      pageSize: this.pageSize,
-      q: encodeURIComponent(`artifact_id=${this.artifactDetails.id}`)
+      pageSize: this.pageSize
     };
-    this.tagService.listTagsResponse(params).pipe(finalize(() => {
+    this.artifactService.listTagsResponse(params).pipe(finalize(() => {
       this.loading = false;
     })).subscribe(res => {
       if (res.headers) {
@@ -95,17 +141,9 @@ export class ArtifactTagComponent implements OnInit {
         }
       }
       this.currentTags = res.body;
-    }, error => {
-      this.errorHandlerService.error(error);
-    });
-  }
-  getAllTags() {
-    let params: TagService.ListTagsParams = {
-      projectName: this.projectName,
-      repositoryName: this.repositoryName
-    };
-    this.tagService.listTags(params).subscribe(res => {
-      this.allTags = res;
+      // Do customising filtering and sorting
+      this.currentTags = doFiltering<Tag>(this.currentTags, state);
+      this.currentTags = doSorting<Tag>(this.currentTags, state);
     }, error => {
       this.errorHandlerService.error(error);
     });
@@ -134,7 +172,7 @@ export class ArtifactTagComponent implements OnInit {
     // const tag: NewTag = {name: this.newTagName};
     const createTagParams: ArtifactService.CreateTagParams = {
       projectName: this.projectName,
-      repositoryName: this.repositoryName,
+      repositoryName: dbEncodeURIComponent(this.repositoryName),
       reference: this.artifactDetails.digest,
       tag:  this.newTagName
     };
@@ -142,7 +180,6 @@ export class ArtifactTagComponent implements OnInit {
     this.artifactService.createTag(createTagParams).subscribe(res => {
       this.newTagformShow = false;
       this.newTagName = new InitTag();
-      this.getAllTags();
       this.currentPage = 1;
       let st: ClrDatagridStateInterface = { page: {from: 0, to: this.pageSize - 1, size: this.pageSize} };
       this.getCurrentArtifactTags(st);
@@ -219,16 +256,28 @@ export class ArtifactTagComponent implements OnInit {
     }
   }
 
-  delOperate(tag): Observable<any> | null {
+  delOperate(tag: Tag): Observable<any> | null {
     // init operation info
     let operMessage = new OperateInfo();
     operMessage.name = 'OPERATION.DELETE_TAG';
     operMessage.state = OperationState.progressing;
     operMessage.data.name = tag.name;
     this.operationService.publishInfo(operMessage);
+
+    if (tag.signed) {
+      forkJoin(this.translateService.get("BATCH.DELETED_FAILURE"),
+        this.translateService.get("REPOSITORY.DELETION_SUMMARY_TAG_DENIED")).subscribe(res => {
+          let wrongInfo: string = res[1] + DeleteTagWithNotoryCommand1 + this.registryUrl +
+            DeleteTagWithNotoryCommand2 +
+            this.registryUrl + "/" + this.repositoryName +
+            " " + name;
+          operateChanges(operMessage, OperationState.failure, wrongInfo);
+        });
+        return of(null);
+    } else {
      const deleteTagParams: ArtifactService.DeleteTagParams = {
       projectName: this.projectName,
-      repositoryName: this.repositoryName,
+      repositoryName: dbEncodeURIComponent(this.repositoryName),
       reference: this.artifactDetails.digest,
       tagName: tag.name
     };
@@ -246,18 +295,15 @@ export class ArtifactTagComponent implements OnInit {
           );
           return of(error);
         }));
+      }
   }
 
   existValid(name) {
-    this.isTagNameExist = false;
-    if (this.allTags) {
-      this.allTags.forEach(tag => {
-        if (tag.name === name) {
-          this.isTagNameExist = true;
-        }
-      });
+    if (name) {
+      this.tagNameChecker.next(name);
+    } else {
+      this.isTagNameExist = false;
     }
-
   }
   toggleTagListOpenOrClose() {
     this.openTag = !this.openTag;
@@ -271,5 +317,14 @@ export class ArtifactTagComponent implements OnInit {
     this.currentPage = 1;
     let st: ClrDatagridStateInterface = { page: {from: 0, to: this.pageSize - 1, size: this.pageSize} };
     this.getCurrentArtifactTags(st);
+  }
+  ngOnDestroy(): void {
+    this.tagNameCheckSub.unsubscribe();
+  }
+  get withNotary(): boolean {
+    return this.appConfigService.getConfig().with_notary;
+  }
+  public get registryUrl(): string {
+    return this.systemInfo ? this.systemInfo.registry_url : '';
   }
 }

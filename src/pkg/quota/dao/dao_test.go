@@ -20,8 +20,10 @@ import (
 	"testing"
 
 	"github.com/goharbor/harbor/src/lib/orm"
+	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/pkg/types"
 	htesting "github.com/goharbor/harbor/src/testing"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -39,9 +41,45 @@ func (suite *DaoTestSuite) SetupSuite() {
 	suite.dao = New()
 }
 
+func (suite *DaoTestSuite) TestCount() {
+	suite.Suite.TearDownSuite() // Clean other quotas
+
+	reference := uuid.New().String()
+	hardLimits := types.ResourceList{types.ResourceStorage: 100}
+	usage := types.ResourceList{types.ResourceStorage: 0}
+
+	ctx := suite.Context()
+
+	suite.dao.Create(ctx, reference, "1", types.ResourceList{types.ResourceStorage: 200}, usage)
+	suite.dao.Create(ctx, reference, "2", hardLimits, usage)
+	suite.dao.Create(ctx, reference, "3", hardLimits, usage)
+	suite.dao.Create(ctx, uuid.New().String(), "4", types.ResourceList{types.ResourceStorage: 10}, usage)
+
+	{
+		// Count all the quotas
+		count, err := suite.dao.Count(ctx, nil)
+		suite.Nil(err)
+		suite.Equal(int64(5), count) // 4 + library project quota
+	}
+
+	{
+		// Count quotas filter by reference
+		count, err := suite.dao.Count(ctx, q.New(q.KeyWords{"reference": reference}))
+		suite.Nil(err)
+		suite.Equal(int64(3), count)
+	}
+
+	{
+		// Count quotas filter by reference ids
+		count, err := suite.dao.Count(ctx, q.New(q.KeyWords{"reference": reference, "reference_ids": []string{"1", "2"}}))
+		suite.Nil(err)
+		suite.Equal(int64(2), count)
+	}
+}
+
 func (suite *DaoTestSuite) TestCreate() {
-	hardLimits := types.ResourceList{types.ResourceCount: 1}
-	usage := types.ResourceList{types.ResourceCount: 0}
+	hardLimits := types.ResourceList{types.ResourceStorage: 100}
+	usage := types.ResourceList{types.ResourceStorage: 0}
 	id, err := suite.dao.Create(suite.Context(), "project", "2", hardLimits, usage)
 	suite.Nil(err)
 
@@ -56,8 +94,8 @@ func (suite *DaoTestSuite) TestCreate() {
 }
 
 func (suite *DaoTestSuite) TestDelete() {
-	hardLimits := types.ResourceList{types.ResourceCount: 1}
-	usage := types.ResourceList{types.ResourceCount: 0}
+	hardLimits := types.ResourceList{types.ResourceStorage: 100}
+	usage := types.ResourceList{types.ResourceStorage: 0}
 
 	id, err := suite.dao.Create(suite.Context(), "project", "3", hardLimits, usage)
 	suite.Nil(err)
@@ -77,8 +115,8 @@ func (suite *DaoTestSuite) TestDelete() {
 }
 
 func (suite *DaoTestSuite) TestGetByRef() {
-	hardLimits := types.ResourceList{types.ResourceCount: 1}
-	usage := types.ResourceList{types.ResourceCount: 0}
+	hardLimits := types.ResourceList{types.ResourceStorage: 100}
+	usage := types.ResourceList{types.ResourceStorage: 0}
 
 	reference, referenceID := "project", "4"
 	id, err := suite.dao.Create(suite.Context(), reference, referenceID, hardLimits, usage)
@@ -99,8 +137,8 @@ func (suite *DaoTestSuite) TestGetByRef() {
 }
 
 func (suite *DaoTestSuite) TestGetByRefForUpdate() {
-	hardLimits := types.ResourceList{types.ResourceCount: 1}
-	usage := types.ResourceList{types.ResourceCount: 0}
+	hardLimits := types.ResourceList{types.ResourceStorage: 100}
+	usage := types.ResourceList{types.ResourceStorage: 0}
 
 	reference, referenceID := "project", "5"
 	id, err := suite.dao.Create(suite.Context(), reference, referenceID, hardLimits, usage)
@@ -119,7 +157,7 @@ func (suite *DaoTestSuite) TestGetByRefForUpdate() {
 				suite.Nil(err)
 
 				used, _ := q.GetUsed()
-				used[types.ResourceCount]++
+				used[types.ResourceStorage]++
 				q.SetUsed(used)
 
 				suite.dao.Update(ctx, q)
@@ -136,19 +174,19 @@ func (suite *DaoTestSuite) TestGetByRefForUpdate() {
 		q, err := suite.dao.Get(suite.Context(), id)
 		suite.Nil(err)
 		used, _ := q.GetUsed()
-		suite.Equal(count, used[types.ResourceCount])
+		suite.Equal(count, used[types.ResourceStorage])
 	}
 }
 
 func (suite *DaoTestSuite) TestUpdate() {
-	hardLimits := types.ResourceList{types.ResourceCount: 1}
-	usage := types.ResourceList{types.ResourceCount: 0}
+	hardLimits := types.ResourceList{types.ResourceStorage: 100}
+	usage := types.ResourceList{types.ResourceStorage: 0}
 
 	id, err := suite.dao.Create(suite.Context(), "project", "6", hardLimits, usage)
 	suite.Nil(err)
 
-	newHardLimits := types.ResourceList{types.ResourceCount: 2}
-	newUsage := types.ResourceList{types.ResourceCount: 1}
+	newHardLimits := types.ResourceList{types.ResourceStorage: 200}
+	newUsage := types.ResourceList{types.ResourceStorage: 1}
 
 	{
 		q, err := suite.dao.Get(suite.Context(), id)
@@ -169,6 +207,60 @@ func (suite *DaoTestSuite) TestUpdate() {
 			suite.Equal(newUsage, used)
 		}
 	}
+}
+
+func (suite *DaoTestSuite) TestList() {
+	suite.Suite.TearDownSuite() // Clean other quotas
+
+	reference := uuid.New().String()
+	hardLimits := types.ResourceList{types.ResourceStorage: 100}
+	usage := types.ResourceList{types.ResourceStorage: 0}
+
+	ctx := suite.Context()
+
+	suite.dao.Create(ctx, reference, "1", types.ResourceList{types.ResourceStorage: 200}, usage)
+	suite.dao.Create(ctx, reference, "2", hardLimits, usage)
+	suite.dao.Create(ctx, reference, "3", hardLimits, usage)
+	suite.dao.Create(ctx, uuid.New().String(), "4", types.ResourceList{types.ResourceStorage: 10}, usage)
+
+	{
+		// List all the quotas
+		quotas, err := suite.dao.List(ctx, nil)
+		suite.Nil(err)
+		suite.Equal(5, len(quotas)) // 4 + library project quota
+		suite.NotEqual(reference, quotas[0].Reference)
+		suite.Equal("4", quotas[0].ReferenceID)
+	}
+
+	{
+		// List quotas filter by reference
+		quotas, err := suite.dao.List(ctx, q.New(q.KeyWords{"reference": reference}))
+		suite.Nil(err)
+		suite.Equal(3, len(quotas))
+	}
+
+	{
+		// List quotas filter by reference ids
+		quotas, err := suite.dao.List(ctx, q.New(q.KeyWords{"reference": reference, "reference_ids": []string{"1", "2"}}))
+		suite.Nil(err)
+		suite.Equal(2, len(quotas))
+	}
+
+	{
+		// List quotas by pagination
+		quotas, err := suite.dao.List(ctx, &q.Query{PageSize: 2})
+		suite.Nil(err)
+		suite.Equal(2, len(quotas))
+	}
+
+	{
+		// List quotas by sorting
+		quotas, err := suite.dao.List(ctx, &q.Query{Keywords: q.KeyWords{"reference": reference}, Sorting: "-hard.storage"})
+		suite.Nil(err)
+		suite.Equal(reference, quotas[0].Reference)
+		suite.Equal("1", quotas[0].ReferenceID)
+	}
+
 }
 
 func TestDaoTestSuite(t *testing.T) {

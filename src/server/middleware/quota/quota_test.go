@@ -25,6 +25,7 @@ import (
 	"github.com/goharbor/harbor/src/controller/blob"
 	"github.com/goharbor/harbor/src/controller/project"
 	"github.com/goharbor/harbor/src/controller/quota"
+	pquota "github.com/goharbor/harbor/src/pkg/quota"
 	"github.com/goharbor/harbor/src/pkg/types"
 	artifacttesting "github.com/goharbor/harbor/src/testing/controller/artifact"
 	blobtesting "github.com/goharbor/harbor/src/testing/controller/blob"
@@ -164,7 +165,7 @@ func (suite *RequestMiddlewareTestSuite) TestResourcesRequestOK() {
 	rr := httptest.NewRecorder()
 
 	reference, referenceID := "project", "1"
-	resources := types.ResourceList{types.ResourceCount: 1}
+	resources := types.ResourceList{types.ResourceStorage: 100}
 	config := suite.makeRequestConfig(reference, referenceID, resources)
 
 	mock.OnAnything(suite.quotaController, "IsEnabled").Return(true, nil)
@@ -183,7 +184,7 @@ func (suite *RequestMiddlewareTestSuite) TestResourcesRequestFailed() {
 	rr := httptest.NewRecorder()
 
 	reference, referenceID := "project", "1"
-	resources := types.ResourceList{types.ResourceCount: 1}
+	resources := types.ResourceList{types.ResourceStorage: 100}
 	config := suite.makeRequestConfig(reference, referenceID, resources)
 
 	mock.OnAnything(suite.quotaController, "IsEnabled").Return(true, nil)
@@ -191,6 +192,27 @@ func (suite *RequestMiddlewareTestSuite) TestResourcesRequestFailed() {
 
 	RequestMiddleware(config)(next).ServeHTTP(rr, req)
 	suite.Equal(http.StatusInternalServerError, rr.Code)
+}
+
+func (suite *RequestMiddlewareTestSuite) TestResourcesRequestDenied() {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/url", nil)
+	rr := httptest.NewRecorder()
+
+	reference, referenceID := "project", "1"
+	resources := types.ResourceList{types.ResourceStorage: 100}
+	config := suite.makeRequestConfig(reference, referenceID, resources)
+
+	mock.OnAnything(suite.quotaController, "IsEnabled").Return(true, nil)
+	var errs pquota.Errors
+	errs = errs.Add(fmt.Errorf("Exceed"))
+	mock.OnAnything(suite.quotaController, "Request").Return(errs)
+
+	RequestMiddleware(config)(next).ServeHTTP(rr, req)
+	suite.Equal(http.StatusForbidden, rr.Code)
 }
 
 func TestRequestMiddlewareTestSuite(t *testing.T) {
@@ -229,6 +251,54 @@ func (suite *RefreshMiddlewareTestSuite) TestQuotaDisabled() {
 
 	RefreshMiddleware(config)(next).ServeHTTP(rr, req)
 	suite.Equal(http.StatusOK, rr.Code)
+}
+
+func (suite *RefreshMiddlewareTestSuite) TestQuotaIsEnabledFailed() {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/url", nil)
+	rr := httptest.NewRecorder()
+
+	reference, referenceID := "project", "1"
+
+	config := RefreshConfig{
+		ReferenceObject: func(*http.Request) (string, string, error) {
+			return reference, referenceID, nil
+		},
+	}
+
+	mock.OnAnything(suite.quotaController, "IsEnabled").Return(false, fmt.Errorf("error"))
+
+	RefreshMiddleware(config)(next).ServeHTTP(rr, req)
+	suite.Equal(http.StatusInternalServerError, rr.Code)
+}
+
+func (suite *RefreshMiddlewareTestSuite) TestInvalidConfig() {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/url", nil)
+	rr := httptest.NewRecorder()
+
+	config := RefreshConfig{}
+	RefreshMiddleware(config)(next).ServeHTTP(rr, req)
+	suite.Equal(http.StatusInternalServerError, rr.Code)
+}
+
+func (suite *RefreshMiddlewareTestSuite) TestNotSuccess() {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/url", nil)
+	rr := httptest.NewRecorder()
+
+	config := RefreshConfig{}
+	RefreshMiddleware(config)(next).ServeHTTP(rr, req)
+	suite.Equal(http.StatusBadRequest, rr.Code)
 }
 
 func (suite *RefreshMiddlewareTestSuite) TestRefershOK() {

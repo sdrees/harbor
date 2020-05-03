@@ -22,11 +22,8 @@ import (
 	"github.com/goharbor/harbor/src/common"
 	"github.com/goharbor/harbor/src/common/config"
 	"github.com/goharbor/harbor/src/common/models"
-	"github.com/goharbor/harbor/src/controller/artifact"
 	"github.com/goharbor/harbor/src/controller/blob"
-	"github.com/goharbor/harbor/src/controller/chartmuseum"
 	"github.com/goharbor/harbor/src/lib/log"
-	"github.com/goharbor/harbor/src/lib/q"
 	dr "github.com/goharbor/harbor/src/pkg/quota/driver"
 	"github.com/goharbor/harbor/src/pkg/types"
 	"github.com/graph-gophers/dataloader"
@@ -40,9 +37,7 @@ type driver struct {
 	cfg    *config.CfgManager
 	loader *dataloader.Loader
 
-	artifactCtl artifact.Controller
-	blobCtl     blob.Controller
-	chartCtl    chartmuseum.Controller
+	blobCtl blob.Controller
 }
 
 func (d *driver) Enabled(ctx context.Context, key string) (bool, error) {
@@ -60,7 +55,6 @@ func (d *driver) HardLimits(ctx context.Context) types.ResourceList {
 	}
 
 	return types.ResourceList{
-		types.ResourceCount:   d.cfg.Get(common.CountPerProject).GetInt64(),
 		types.ResourceStorage: d.cfg.Get(common.StoragePerProject).GetInt64(),
 	}
 }
@@ -87,7 +81,6 @@ func (d *driver) Load(ctx context.Context, key string) (dr.RefObject, error) {
 
 func (d *driver) Validate(hardLimits types.ResourceList) error {
 	resources := map[types.ResourceName]bool{
-		types.ResourceCount:   true,
 		types.ResourceStorage: true,
 	}
 
@@ -116,23 +109,12 @@ func (d *driver) CalculateUsage(ctx context.Context, key string) (types.Resource
 		return nil, err
 	}
 
-	// HACK: base=* in KeyWords to filter all artifacts
-	artifactsCount, err := d.artifactCtl.Count(ctx, q.New(q.KeyWords{"project_id": projectID, "base": "*"}))
-	if err != nil {
-		return nil, err
-	}
-
-	chartsCount, err := d.chartCtl.Count(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-
 	size, err := d.blobCtl.CalculateTotalSizeByProject(ctx, projectID, true)
 	if err != nil {
 		return nil, err
 	}
 
-	return types.ResourceList{types.ResourceCount: artifactsCount + chartsCount, types.ResourceStorage: size}, nil
+	return types.ResourceList{types.ResourceStorage: size}, nil
 }
 
 func newDriver() dr.Driver {
@@ -141,10 +123,8 @@ func newDriver() dr.Driver {
 	loader := dataloader.NewBatchedLoader(getProjectsBatchFn)
 
 	return &driver{
-		cfg:         cfg,
-		loader:      loader,
-		artifactCtl: artifact.Ctl,
-		blobCtl:     blob.Ctl,
-		chartCtl:    chartmuseum.Ctl,
+		cfg:     cfg,
+		loader:  loader,
+		blobCtl: blob.Ctl,
 	}
 }

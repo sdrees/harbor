@@ -1,16 +1,16 @@
 package contenttrust
 
 import (
-	"fmt"
-	"github.com/goharbor/harbor/src/common/rbac"
-	"github.com/goharbor/harbor/src/common/security"
+	"net/http"
+
+	"github.com/goharbor/harbor/src/controller/artifact"
 	"github.com/goharbor/harbor/src/controller/project"
-	"github.com/goharbor/harbor/src/jobservice/logger"
 	"github.com/goharbor/harbor/src/lib"
 	"github.com/goharbor/harbor/src/lib/errors"
+	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/signature"
 	"github.com/goharbor/harbor/src/server/middleware"
-	"net/http"
+	"github.com/goharbor/harbor/src/server/middleware/util"
 )
 
 var (
@@ -29,23 +29,27 @@ var (
 func Middleware() func(http.Handler) http.Handler {
 	return middleware.BeforeRequest(func(r *http.Request) error {
 		ctx := r.Context()
+
+		logger := log.G(ctx)
+
 		none := lib.ArtifactInfo{}
-		if err := middleware.EnsureArtifactDigest(ctx); err != nil {
-			return err
-		}
 		af := lib.GetArtifactInfo(ctx)
 		if af == none {
-			return fmt.Errorf("artifactinfo middleware required before this middleware")
+			return errors.New("artifactinfo middleware required before this middleware").WithCode(errors.NotFoundCode)
+		}
+		if len(af.Digest) == 0 {
+			art, err := artifact.Ctl.GetByReference(ctx, af.Repository, af.Reference, nil)
+			if err != nil {
+				return err
+			}
+			af.Digest = art.Digest
 		}
 		pro, err := project.Ctl.GetByName(ctx, af.ProjectName)
 		if err != nil {
 			return err
 		}
-		securityCtx, ok := security.FromContext(ctx)
-		// only authenticated robot account with scanner pull access can bypass.
-		if ok && securityCtx.IsAuthenticated() &&
-			securityCtx.Name() == "robot" &&
-			securityCtx.Can(rbac.ActionScannerPull, rbac.NewProjectNamespace(pro.ProjectID).Resource(rbac.ResourceRepository)) {
+
+		if util.SkipPolicyChecking(ctx, pro.ProjectID) {
 			// the artifact is pulling by the scanner, skip the checking
 			logger.Debugf("artifact %s@%s is pulling by the scanner, skip the checking", af.Repository, af.Digest)
 			return nil

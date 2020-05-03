@@ -16,7 +16,7 @@ package all
 
 import (
 	"github.com/goharbor/harbor/src/jobservice/job"
-	"github.com/pkg/errors"
+	"github.com/goharbor/harbor/src/lib/errors"
 )
 
 const (
@@ -33,6 +33,11 @@ type Job struct{}
 // MaxFails implements the interface in job/Interface
 func (sa *Job) MaxFails() uint {
 	return 1
+}
+
+// MaxCurrency is implementation of same method in Interface.
+func (sa *Job) MaxCurrency() uint {
+	return 0
 }
 
 // ShouldRetry implements the interface in job/Interface

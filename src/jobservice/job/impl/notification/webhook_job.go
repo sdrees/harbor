@@ -3,12 +3,12 @@ package notification
 import (
 	"bytes"
 	"fmt"
-	commonhttp "github.com/goharbor/harbor/src/common/http"
-	"github.com/goharbor/harbor/src/jobservice/job"
-	"github.com/goharbor/harbor/src/jobservice/logger"
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/goharbor/harbor/src/jobservice/job"
+	"github.com/goharbor/harbor/src/jobservice/logger"
 )
 
 // Max retry has the same meaning as max fails.
@@ -22,18 +22,24 @@ type WebhookJob struct {
 }
 
 // MaxFails returns that how many times this job can fail, get this value from ctx.
-func (wj *WebhookJob) MaxFails() uint {
-	if maxFails, exist := os.LookupEnv(maxFails); exist {
-		result, err := strconv.ParseUint(maxFails, 10, 32)
-		// Unable to log error message because the logger isn't initialized when calling this function.
-		if err == nil {
-			return uint(result)
-		}
-	}
-
+func (wj *WebhookJob) MaxFails() (result uint) {
 	// Default max fails count is 10, and its max retry interval is around 3h
 	// Large enough to ensure most situations can notify successfully
-	return 10
+	result = 10
+	if maxFails, exist := os.LookupEnv(maxFails); exist {
+		mf, err := strconv.ParseUint(maxFails, 10, 32)
+		if err != nil {
+			logger.Warningf("Fetch webhook job maxFails error: %s", err.Error())
+			return result
+		}
+		result = uint(mf)
+	}
+	return result
+}
+
+// MaxCurrency is implementation of same method in Interface.
+func (wj *WebhookJob) MaxCurrency() uint {
+	return 0
 }
 
 // ShouldRetry ...
@@ -52,9 +58,9 @@ func (wj *WebhookJob) Run(ctx job.Context, params job.Parameters) error {
 		return err
 	}
 
-	// does not throw err in the notification job
 	if err := wj.execute(ctx, params); err != nil {
 		wj.logger.Error(err)
+		return err
 	}
 
 	return nil
@@ -66,18 +72,14 @@ func (wj *WebhookJob) init(ctx job.Context, params map[string]interface{}) error
 	wj.ctx = ctx
 
 	// default use insecure transport
-	tr := commonhttp.GetHTTPTransport(commonhttp.InsecureTransport)
+	wj.client = GetHTTPInstance(true)
 	if v, ok := params["skip_cert_verify"]; ok {
 		if insecure, ok := v.(bool); ok {
 			if insecure {
-				tr = commonhttp.GetHTTPTransport(commonhttp.SecureTransport)
+				wj.client = GetHTTPInstance(false)
 			}
 		}
 	}
-	wj.client = &http.Client{
-		Transport: tr,
-	}
-
 	return nil
 }
 

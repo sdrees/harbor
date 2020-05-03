@@ -17,12 +17,12 @@ package scanner
 import (
 	"github.com/goharbor/harbor/src/core/promgr/metamgr"
 	"github.com/goharbor/harbor/src/jobservice/logger"
+	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/pkg/scan/dao/scanner"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
 	rscanner "github.com/goharbor/harbor/src/pkg/scan/scanner"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -65,6 +65,10 @@ func (bc *basicController) ListRegistrations(query *q.Query) ([]*scanner.Registr
 
 // CreateRegistration ...
 func (bc *basicController) CreateRegistration(registration *scanner.Registration) (string, error) {
+	if isReservedName(registration.Name) {
+		return "", errors.BadRequestError(nil).WithMessage(`name "%s" is reserved, please try a different name`, registration.Name)
+	}
+
 	// Check if the registration is available
 	if _, err := bc.Ping(registration); err != nil {
 		return "", errors.Wrap(err, "api controller: create registration")
@@ -113,6 +117,10 @@ func (bc *basicController) RegistrationExists(registrationUUID string) bool {
 func (bc *basicController) UpdateRegistration(registration *scanner.Registration) error {
 	if registration.IsDefault && registration.Disabled {
 		return errors.Errorf("default registration %s can not be marked to disabled", registration.UUID)
+	}
+
+	if isReservedName(registration.Name) {
+		return errors.BadRequestError(nil).WithMessage(`name "%s" is reserved, please try a different name`, registration.Name)
 	}
 
 	return bc.manager.Update(registration)
@@ -315,4 +323,18 @@ func (bc *basicController) GetMetadata(registrationUUID string) (*v1.ScannerAdap
 	}
 
 	return bc.Ping(r)
+}
+
+var (
+	reservedNames = []string{"Clair", "Trivy"}
+)
+
+func isReservedName(name string) bool {
+	for _, reservedName := range reservedNames {
+		if name == reservedName {
+			return true
+		}
+	}
+
+	return false
 }

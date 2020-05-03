@@ -18,17 +18,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/goharbor/harbor/src/lib/selector"
 	"strings"
 	"time"
 
+	"github.com/goharbor/harbor/src/lib/selector"
+
 	"github.com/goharbor/harbor/src/jobservice/job"
 	"github.com/goharbor/harbor/src/jobservice/logger"
+	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/pkg/retention/dep"
 	"github.com/goharbor/harbor/src/pkg/retention/policy"
 	"github.com/goharbor/harbor/src/pkg/retention/policy/lwp"
 	"github.com/olekukonko/tablewriter"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -46,9 +47,14 @@ func (pj *Job) MaxFails() uint {
 	return 3
 }
 
+// MaxCurrency is implementation of same method in Interface.
+func (pj *Job) MaxCurrency() uint {
+	return 0
+}
+
 // ShouldRetry indicates job can be retried if failed
 func (pj *Job) ShouldRetry() bool {
-	return true
+	return false
 }
 
 // Validate the parameters
@@ -207,7 +213,7 @@ func arn(art *selector.Candidate) string {
 }
 
 func t(tm int64) string {
-	if tm == 0 {
+	if tm <= 0 {
 		return ""
 	}
 	return time.Unix(tm, 0).Format("2006/01/02 15:04:05")
