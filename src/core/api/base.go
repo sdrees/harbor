@@ -25,10 +25,12 @@ import (
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/security"
 	"github.com/goharbor/harbor/src/common/utils"
+	"github.com/goharbor/harbor/src/controller/p2p/preheat"
 	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/core/promgr"
 	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/lib/log"
+	"github.com/goharbor/harbor/src/lib/orm"
 	"github.com/goharbor/harbor/src/pkg/project"
 	"github.com/goharbor/harbor/src/pkg/repository"
 	"github.com/goharbor/harbor/src/pkg/retention"
@@ -84,24 +86,20 @@ func (b *BaseController) RequireAuthenticated() bool {
 
 // HasProjectPermission returns true when the request has action permission on project subresource
 func (b *BaseController) HasProjectPermission(projectIDOrName interface{}, action rbac.Action, subresource ...rbac.Resource) (bool, error) {
-	projectID, projectName, err := utils.ParseProjectIDOrName(projectIDOrName)
+	_, _, err := utils.ParseProjectIDOrName(projectIDOrName)
 	if err != nil {
 		return false, err
 	}
 
-	if projectName != "" {
-		project, err := b.ProjectMgr.Get(projectName)
-		if err != nil {
-			return false, err
-		}
-		if project == nil {
-			return false, errors.NotFoundError(nil).WithMessage("project %s not found", projectName)
-		}
-
-		projectID = project.ProjectID
+	project, err := b.ProjectMgr.Get(projectIDOrName)
+	if err != nil {
+		return false, err
+	}
+	if project == nil {
+		return false, errors.NotFoundError(fmt.Errorf("project %v not found", projectIDOrName))
 	}
 
-	resource := rbac.NewProjectNamespace(projectID).Resource(subresource...)
+	resource := rbac.NewProjectNamespace(project.ProjectID).Resource(subresource...)
 	if !b.SecurityCtx.Can(action, resource) {
 		return false, nil
 	}
@@ -114,22 +112,40 @@ func (b *BaseController) HasProjectPermission(projectIDOrName interface{}, actio
 func (b *BaseController) RequireProjectAccess(projectIDOrName interface{}, action rbac.Action, subresource ...rbac.Resource) bool {
 	hasPermission, err := b.HasProjectPermission(projectIDOrName, action, subresource...)
 	if err != nil {
-		b.SendError(err)
-
+		if errors.IsNotFoundErr(err) {
+			b.handleProjectNotFound(projectIDOrName)
+		} else {
+			b.SendError(err)
+		}
 		return false
 	}
 
 	if !hasPermission {
-		if !b.SecurityCtx.IsAuthenticated() {
-			b.SendError(errors.UnauthorizedError(errors.New("Unauthorized")))
-		} else {
-			b.SendError(errors.New(errors.New(b.SecurityCtx.GetUsername())).WithCode(errors.ForbiddenCode))
-		}
-
+		b.SendPermissionError()
 		return false
 	}
 
 	return true
+}
+
+// This should be called when a project is not found, if the caller is a system admin it returns 404.
+// If it's regular user, it will render permission error
+func (b *BaseController) handleProjectNotFound(projectIDOrName interface{}) {
+	if b.SecurityCtx.IsSysAdmin() {
+		b.SendNotFoundError(fmt.Errorf("project %v not found", projectIDOrName))
+	} else {
+		b.SendPermissionError()
+	}
+}
+
+// SendPermissionError is a shortcut for sending different http error based on authentication status.
+func (b *BaseController) SendPermissionError() {
+	if !b.SecurityCtx.IsAuthenticated() {
+		b.SendUnAuthorizedError(errors.New("UnAuthorized"))
+	} else {
+		b.SendForbiddenError(errors.New(b.SecurityCtx.GetUsername()))
+	}
+
 }
 
 // WriteJSONData writes the JSON data to the client.
@@ -170,15 +186,13 @@ func Init() error {
 	// init project manager
 	initProjectManager()
 
-	initRetentionScheduler()
-
 	retentionMgr = retention.NewManager()
 
 	retentionLauncher = retention.NewLauncher(projectMgr, repository.Mgr, retentionMgr)
 
-	retentionController = retention.NewAPIController(retentionMgr, projectMgr, repository.Mgr, retentionScheduler, retentionLauncher)
+	retentionController = retention.NewAPIController(retentionMgr, projectMgr, repository.Mgr, scheduler.Sched, retentionLauncher)
 
-	callbackFun := func(p interface{}) error {
+	retentionCallbackFun := func(p interface{}) error {
 		str, ok := p.(string)
 		if !ok {
 			return fmt.Errorf("the type of param %v isn't string", p)
@@ -190,7 +204,24 @@ func Init() error {
 		_, err := retentionController.TriggerRetentionExec(param.PolicyID, param.Trigger, false)
 		return err
 	}
-	err := scheduler.Register(retention.SchedulerCallback, callbackFun)
+	err := scheduler.RegisterCallbackFunc(retention.SchedulerCallback, retentionCallbackFun)
+	if err != nil {
+		return err
+	}
+
+	p2pPreheatCallbackFun := func(p interface{}) error {
+		str, ok := p.(string)
+		if !ok {
+			return fmt.Errorf("the type of param %v isn't string", p)
+		}
+		param := &preheat.TriggerParam{}
+		if err := json.Unmarshal([]byte(str), param); err != nil {
+			return fmt.Errorf("failed to unmarshal the param: %v", err)
+		}
+		_, err := preheat.Enf.EnforcePolicy(orm.Context(), param.PolicyID)
+		return err
+	}
+	err = scheduler.RegisterCallbackFunc(preheat.SchedulerCallback, p2pPreheatCallbackFun)
 
 	return err
 }
@@ -212,8 +243,4 @@ func initChartController() error {
 
 func initProjectManager() {
 	projectMgr = project.Mgr
-}
-
-func initRetentionScheduler() {
-	retentionScheduler = scheduler.GlobalScheduler
 }

@@ -42,16 +42,12 @@ Test Case - OIDC User Sign In
     Sleep  2
     Sign In Harbor With OIDC User    ${HARBOR_URL}    test7
     Sleep  2
-    Sign In Harbor With OIDC User    ${HARBOR_URL}    test8
-    Sleep  2
-    Sign In Harbor With OIDC User    ${HARBOR_URL}    test9
-    Sleep  2
     Close Browser
 
 Test Case - Create An New Project
     Sign In Harbor With OIDC User  ${HARBOR_URL}
     ${d}=    Get Current Date    result_format=%m%s
-    Create An New Project  test${d}
+    Create An New Project And Go Into Project  test${d}
     Close Browser
 
 Test Case - Delete A Project
@@ -73,9 +69,9 @@ Test Case - Generate User CLI Secret
     ${d}=    Get current Date  result_format=%m%s
     ${image}=  Set Variable  hello-world
     Sign In Harbor With OIDC User  ${HARBOR_URL}
-    Create An New Project  project${d}
+    Create An New Project And Go Into Project  project${d}
     ${secret_old}=  Get Secrete By API  ${HARBOR_URL}
-    Push image  ip=${ip}  user=${OIDC_USERNAME}  pwd=${secret_old}  project=project${d}  image=${image}
+    Push image  ${ip}  ${OIDC_USERNAME}  ${secret_old}  project${d}  ${image}
     ${secret_new}=  Generate And Return Secret  ${HARBOR_URL}
     Log To Console  ${secret_old}
     Log To Console  ${secret_new}
@@ -89,3 +85,18 @@ Test Case - Helm CLI Push
     Sign In Harbor With OIDC User  ${HARBOR_URL}
     ${secret}=  Get Secrete By API  ${HARBOR_URL}
     Helm CLI Push Without Sign In Harbor  ${OIDC_USERNAME}  ${secret}
+
+Test Case - Onboard OIDC User Sign In
+    Init Chrome Driver
+    Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
+    Switch To Configure
+    Check Automatic Onboarding And Save
+    Logout Harbor
+    Sign In Harbor With OIDC User  ${HARBOR_URL}  test8  is_onboard=${true}
+    Logout Harbor
+	Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
+    Switch To Configure
+    Set User Name Claim And Save  email
+    Logout Harbor
+    Sign In Harbor With OIDC User  ${HARBOR_URL}  test9  is_onboard=${true}  username_claim=email
+    Sleep  2

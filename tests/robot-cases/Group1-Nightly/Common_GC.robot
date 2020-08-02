@@ -29,21 +29,22 @@ Test Case - Garbage Collection
     ${d}=   Get Current Date    result_format=%m%s
 
     Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
-    Create An New Project  project${d}
-    Push Image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project${d}  hello-world
+    Create An New Project And Go Into Project  project${d}
+    Push Image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project${d}  redis
     Sleep  2
     Go Into Project  project${d}
     Delete Repo  project${d}
     Sleep  2
     GC Now  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
-    Retry GC Should Be Successful  1  0 blobs marked, 3 blobs and 0 manifests eligible for deletion
+    Retry GC Should Be Successful  1  7 blobs and 1 manifests eligible for deletion
+    Retry GC Should Be Successful  1  The GC job actual frees up 34 MB space
     Close Browser
 
 Test Case - GC Untagged Images
     Init Chrome Driver
     Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
     ${d}=    Get Current Date    result_format=%m%s
-    Create An New Project  project${d}
+    Create An New Project And Go Into Project  project${d}
     Push Image With Tag  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project${d}  hello-world  latest
     # make hello-world untagged
     Go Into Project   project${d}
@@ -80,7 +81,7 @@ Test Case - Project Quotas Control Under GC
     ${image_a_ver}=  Set Variable  6.8.3
     Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
     Capture Page Screenshot
-    Create An New Project  project${d}  storage_quota=${storage_quota}  storage_quota_unit=${storage_quota_unit}
+    Create An New Project And Go Into Project  project${d}  storage_quota=${storage_quota}  storage_quota_unit=${storage_quota_unit}
     Capture Page Screenshot
     Cannot Push image  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  project${d}  ${image_a}:${image_a_ver}  err_msg=will exceed the configured upper limit of 200.0 MiB
     Capture Page Screenshot

@@ -19,9 +19,10 @@ import (
 	"strconv"
 
 	"github.com/goharbor/harbor/src/controller/blob"
+	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/blob/models"
-	"github.com/goharbor/harbor/src/pkg/types"
+	"github.com/goharbor/harbor/src/pkg/quota/types"
 )
 
 // PutManifestMiddleware middleware to request count and storage resources for the project
@@ -42,7 +43,7 @@ func putManifestResources(r *http.Request, reference, referenceID string) (types
 	manifest, descriptor, err := unmarshalManifest(r)
 	if err != nil {
 		logger.Errorf("unmarshal manifest failed, error: %v", err)
-		return nil, err
+		return nil, errors.Wrap(err, "unmarshal manifest failed").WithCode(errors.MANIFESTINVALID)
 	}
 
 	exist, err := blobController.Exist(r.Context(), descriptor.Digest.String(), blob.IsAssociatedWithProject(projectID))

@@ -2,14 +2,23 @@
 
 ## Welcome
 
-Welcome to Harbor! This guide provides information on filing issues and guidelines for open source contributors. **Please leave comments / suggestions if you find something is missing or incorrect.**
+Harbor is developed in the open, and is constantly being improved by our **users, contributors, and maintainers**.  
+It is because of you that we can bring great software to the community.
 
-Contributors are encouraged to collaborate using the following resources in addition to the GitHub [issue tacker](https://github.com/goharbor/harbor/issues):
+This guide provides information on filing issues and guidelines for open source contributors. **Please leave comments / suggestions if you find something is missing or incorrect.**
 
-**Twitter:** [@project_harbor](https://twitter.com/project_harbor)  
-**User Group:** Join Harbor user email group: [harbor-users@googlegroups.com](https://groups.google.com/forum/#!forum/harbor-users) to get update of Harbor's news, features, releases, or to provide suggestion and feedback. To subscribe, send an email to [harbor-users+subscribe@googlegroups.com](mailto:harbor-users+subscribe@googlegroups.com) .  
-**Developer Group:** Join Harbor developer group: [harbor-dev@googlegroups.com](https://groups.google.com/forum/#!forum/harbor-dev) for discussion on Harbor development and contribution. To subscribe, send an email to [harbor-dev+subscribe@googlegroups.com](mailto:harbor-dev+subscribe@googlegroups.com).  
-**Slack:** Join Harbor's community for discussion and ask questions: [Cloud Native Computing Foundation](https://slack.cncf.io/), channel: #harbor and #harbor-dev
+Contributors are encouraged to collaborate using the following resources in addition to the GitHub [issue tracker](https://github.com/goharbor/harbor/issues):
+
+* [Bi-weekly public community meetings][community-meetings]
+  * Catch up with [past meetings on YouTube][past-meetings]
+* Chat with us on the CNCF Slack ([get an invite here][cncf-slack] )
+  * [#harbor][users-slack] for end-user discussions
+  * [#harbor-dev][dev-slack] for development of Harbor
+* Want long-form communication instead of Slack? We have two distributions lists:
+  * [harbor-users][users-dl] for end-user discussions
+  * [harbor-dev][dev-dl] for development of Harbor
+
+Follow us on Twitter at [@project_harbor][twitter]
 
 ## Getting Started
 
@@ -34,7 +43,7 @@ git fetch $USER
 ```
 **NOTES:** Note that GOPATH can be any directory, the example above uses $HOME/go. Change $USER above to your own GitHub username.
 
-To build the project, please refer the [build](docs/compile_guide.md) guideline.
+To build the project, please refer the [build](https://goharbor.io/docs/2.0.0/build-customize-contribute/compile-guide/) guideline.
 
 ### Repository Structure
 
@@ -43,7 +52,6 @@ Here is the basic structure of the harbor code base. Some of the key folders / f
 .
 ...
 ├── contrib       # Contain documents, scripts, and other helpful things which are contributed by the community
-├── docs          # Keep documents here
 ├── make          # Resource for building and setting up Harbor environment
 ...
 ├── src           # Source code folder
@@ -129,7 +137,7 @@ Harbor backend is written in [Go](http://golang.org/). If you don't have a Harbo
 |   1.8    |    1.11.2     |
 |   1.9    |    1.12.12    |
 |   1.10   |    1.12.12    |
-|   1.11   |    1.13.8     |
+|   1.11   |    1.14.5     |
 
 Ensure your GOPATH and PATH have been configured in accordance with the Go environment instructions.
 
@@ -161,8 +169,7 @@ cd $REPO_DIR/src/portal/lib
 npm install
 ```
 
-
-To run the code, please refer to the [build](docs/compile_guide.md) guideline.
+To run the code, please refer to the [build](https://goharbor.io/docs/2.0.0/build-customize-contribute/compile-guide/) guideline.
 
 ## Contribute Workflow
 
@@ -171,9 +178,6 @@ PR are always welcome, even if they only contain small fixes like typos or a few
 Please submit a PR broken down into small changes bit by bit. A PR consisting of a lot features and code changes may be hard to review. It is recommended to submit PRs in an incremental fashion.
 
 Note: If you split your pull request to small changes, please make sure any of the changes goes to master will not break anything. Otherwise, it can not be merged until this feature complete. 
-
-The graphic shown below describes the overall workflow about how to contribute code to Harbor repository.
-![contribute workflow](docs/img/workflow.png)
 
 ### Fork and clone
 
@@ -243,7 +247,7 @@ Run UI library test cases:
 npm run test
 ```
 
-To build code, please refer to [build](docs/compile_guide.md) guideline.
+To build the code, please refer to [build](https://goharbor.io/docs/2.0.0/build-customize-contribute/compile-guide/) guideline.
 
 ###  Keep sync with upstream
 
@@ -327,10 +331,19 @@ Be sure to include the steps to reproduce the problem if applicable. It can help
 
 Update the documentation if you are creating or changing features. Good documentation is as important as the code itself.
 
-The main location for the document is the `docs/` folder. The images referred in documents can be placed in `docs/img`.
+The main location for the documentation is the [website repository](https://github.com/goharbor/website). The images referred to in documents can be placed in `docs/img` in that repo.
 
-Documents are written with Markdown text. See [Writing on GitHub](https://help.github.com/categories/writing-on-github/) for more details.
+Documents are written with Markdown. See [Writing on GitHub](https://help.github.com/categories/writing-on-github/) for more details.
 
 ## Design new features
 
 You can propose new designs for existing Harbor features. You can also design entirely new features, Please submit a proposal in GitHub.(https://github.com/goharbor/community/tree/master/proposals). Harbor maintainers will review this proposal as soon as possible. This is necessary to ensure the overall architecture is consistent and to avoid duplicated work in the roadmap.
+
+[community-meetings]: https://github.com/goharbor/community/blob/master/MEETING_SCHEDULE.md
+[past-meetings]: https://www.youtube.com/playlist?list=PLgInP-D86bCwTC0DYAa1pgupsQIAWPomv
+[users-slack]: https://cloud-native.slack.com/archives/CC1E09J6S
+[dev-slack]: https://cloud-native.slack.com/archives/CC1E0J0MC
+[cncf-slack]: https://slack.cncf.io
+[users-dl]: https://lists.cncf.io/g/harbor-users
+[dev-dl]: https://lists.cncf.io/g/harbor-dev
+[twitter]: http://twitter.com/project_harbor

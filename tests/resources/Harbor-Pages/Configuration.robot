@@ -169,6 +169,10 @@ Token Must Be Match
     [Arguments]  ${minutes}
     Textfield Value Should Be  xpath=//*[@id='tokenExpiration']  ${minutes}
 
+Robot Account Token Must Be Match
+    [Arguments]  ${days}
+    Textfield Value Should Be  xpath=//*[@id='robotTokenExpiration']  ${days}
+
 ## Replication
 Check Verify Remote Cert
     Mouse Down  xpath=//*[@id='clr-checkbox-verifyRemoteCert']
@@ -198,7 +202,7 @@ Config Email
     Input Text  xpath=//*[@id='emailUsername']  example@vmware.com
     Input Text  xpath=//*[@id='emailPassword']  example
     Input Text  xpath=//*[@id='emailFrom']  example<example@vmware.com>
-    Sleep  1    
+    Sleep  1
     Retry Element Click  xpath=//*[@id='emailSSL-wrapper']/label
     Sleep  1
     Retry Element Click  xpath=//*[@id='emailInsecure-wrapper']/label
@@ -312,14 +316,14 @@ Switch To GC History
     Retry Element Click  xpath=${gc_log_xpath}
     Retry Wait Until Page Contains  Job
 
-Add Items To System CVE Whitelist
+Add Items To System CVE Allowlist
     [Arguments]    ${cve_id}
     Retry Element Click    ${configuration_system_wl_add_btn}
     Retry Text Input    ${configuration_system_wl_textarea}    ${cve_id}
     Retry Element Click    ${configuration_system_wl_add_confirm_btn}
     Retry Element Click    ${config_system_save_button_xpath}
 
-Delete Top Item In System CVE Whitelist
+Delete Top Item In System CVE Allowlist
     [Arguments]  ${count}=1
     :FOR  ${idx}  IN RANGE  1  ${count}
     \   Retry Element Click    ${configuration_system_wl_delete_a_cve_id_icon}
@@ -337,3 +341,14 @@ Get Project Storage Quota Text From Project Quotas List
     Switch To Project Quotas
     ${storage_quota}=    Get Text    xpath=//project-quotas//clr-datagrid//clr-dg-row[contains(.,'${project_name}')]//clr-dg-cell[3]//label
     [Return]  ${storage_quota}
+
+Check Automatic Onboarding And Save
+    Retry Element Click  ${cfg_auth_automatic_onboarding_checkbox}
+    Retry Element Click  xpath=${config_auth_save_button_xpath}
+    Capture Page Screenshot
+
+Set User Name Claim And Save
+    [Arguments]    ${type}
+    Retry Text Input  ${cfg_auth_user_name_claim_input}  ${type}
+    Retry Element Click  xpath=${config_auth_save_button_xpath}
+    Capture Page Screenshot

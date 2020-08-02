@@ -4,7 +4,6 @@ set -x
 set +e
 sudo rm -fr /data/*
 sudo mkdir -p /data
-docker system prune -a -f
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
 set -e
@@ -31,11 +30,16 @@ if [ $GITHUB_TOKEN ];
 then
     sed "s/# github_token: xxx/github_token: $GITHUB_TOKEN/" -i make/harbor.yml
 fi
-sudo make install COMPILETAG=compile_golangimage CLARITYIMAGE=goharbor/harbor-clarity-ui-builder:1.6.0 NOTARYFLAG=true CLAIRFLAG=true TRIVYFLAG=true CHARTFLAG=true GEN_TLS=true
+sudo make compile build prepare COMPILETAG=compile_golangimage GOBUILDTAGS="include_oss include_gcs" NOTARYFLAG=true CLAIRFLAG=true TRIVYFLAG=true CHARTFLAG=true GEN_TLS=true
+
+# set the debugging env
+echo "GC_TIME_WINDOW_HOURS=0" | sudo tee -a ./make/common/config/core/env
+sudo make start
 
 # waiting 5 minutes to start
 for((i=1;i<=30;i++)); do
   echo $i waiting 10 seconds...
   sleep 10
   curl -k -L -f 127.0.0.1/api/v2.0/systeminfo && break
+  docker ps
 done

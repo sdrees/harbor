@@ -235,7 +235,7 @@ func (session *Session) Bind(dn string, password string) error {
 	return session.ldapConn.Bind(dn, password)
 }
 
-// Open - open Session
+// Open - open Session, should invoke Close for each Open call
 func (session *Session) Open() error {
 
 	splitLdapURL := strings.Split(session.ldapConfig.LdapURL, "://")
@@ -388,7 +388,7 @@ func (session *Session) searchGroup(baseDN, filter, groupName, groupNameAttribut
 		var group models.LdapGroup
 		group.GroupDN = ldapEntry.DN
 		for _, attr := range ldapEntry.Attributes {
-			// OpenLdap sometimes contain leading space in useranme
+			// OpenLdap sometimes contain leading space in username
 			val := strings.TrimSpace(attr.Values[0])
 			log.Debugf("Current ldap entry attr name: %s\n", attr.Name)
 			switch strings.ToLower(attr.Name) {
