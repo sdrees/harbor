@@ -275,6 +275,27 @@ func (api *preheatAPI) DeletePolicy(ctx context.Context, params operation.Delete
 		return api.SendError(ctx, err)
 	}
 
+	detectRunningExecutions := func(executions []*task.Execution) error {
+		for _, exec := range executions {
+			if exec.Status == job.RunningStatus.String() {
+				return fmt.Errorf("execution %d under the policy %s is running, stop it and retry", exec.ID, policy.Name)
+			}
+		}
+		return nil
+	}
+	executions, err := api.executionCtl.List(ctx, &q.Query{Keywords: map[string]interface{}{
+		"vendor_type": job.P2PPreheat,
+		"vendor_id":   policy.ID,
+	}})
+	if err != nil {
+		return api.SendError(ctx, err)
+	}
+
+	// Detecting running tasks under the policy
+	if err = detectRunningExecutions(executions); err != nil {
+		return api.SendError(ctx, liberrors.New(err).WithCode(liberrors.PreconditionCode))
+	}
+
 	err = api.preheatCtl.DeletePolicy(ctx, policy.ID)
 	if err != nil {
 		return api.SendError(ctx, err)
@@ -584,6 +605,11 @@ func (api *preheatAPI) ListExecutions(ctx context.Context, params operation.List
 		query.Keywords["vendor_id"] = policy.ID
 	}
 
+	total, err := api.executionCtl.Count(ctx, query)
+	if err != nil {
+		return api.SendError(ctx, err)
+	}
+
 	executions, err := api.executionCtl.List(ctx, query)
 	if err != nil {
 		return api.SendError(ctx, err)
@@ -598,7 +624,8 @@ func (api *preheatAPI) ListExecutions(ctx context.Context, params operation.List
 		payloads = append(payloads, p)
 	}
 
-	return operation.NewListExecutionsOK().WithPayload(payloads)
+	return operation.NewListExecutionsOK().WithPayload(payloads).WithXTotalCount(total).
+		WithLink(api.Links(ctx, params.HTTPRequest.URL, total, query.PageNumber, query.PageSize).String())
 }
 
 // StopExecution stops execution.
@@ -645,10 +672,18 @@ func (api *preheatAPI) ListTasks(ctx context.Context, params operation.ListTasks
 		return api.SendError(ctx, err)
 	}
 
-	query := &q.Query{
-		Keywords: map[string]interface{}{
-			"execution_id": params.ExecutionID,
-		},
+	query, err := api.BuildQuery(ctx, params.Q, params.Page, params.PageSize)
+	if err != nil {
+		return api.SendError(ctx, err)
+	}
+
+	if query != nil {
+		query.Keywords["execution_id"] = params.ExecutionID
+	}
+
+	total, err := api.taskCtl.Count(ctx, query)
+	if err != nil {
+		return api.SendError(ctx, err)
 	}
 
 	tasks, err := api.taskCtl.List(ctx, query)
@@ -665,11 +700,12 @@ func (api *preheatAPI) ListTasks(ctx context.Context, params operation.ListTasks
 		payloads = append(payloads, p)
 	}
 
-	return operation.NewListTasksOK().WithPayload(payloads)
+	return operation.NewListTasksOK().WithPayload(payloads).WithXTotalCount(total).
+		WithLink(api.Links(ctx, params.HTTPRequest.URL, total, query.PageNumber, query.PageSize).String())
 }
 
-// GetLog gets log.
-func (api *preheatAPI) GetLog(ctx context.Context, params operation.GetLogParams) middleware.Responder {
+// GetPreheatLog gets log.
+func (api *preheatAPI) GetPreheatLog(ctx context.Context, params operation.GetPreheatLogParams) middleware.Responder {
 	if err := api.RequireProjectAccess(ctx, params.ProjectName, rbac.ActionRead, rbac.ResourcePreatPolicy); err != nil {
 		return api.SendError(ctx, err)
 	}
@@ -679,7 +715,7 @@ func (api *preheatAPI) GetLog(ctx context.Context, params operation.GetLogParams
 		return api.SendError(ctx, err)
 	}
 
-	return operation.NewGetLogOK().WithPayload(string(l))
+	return operation.NewGetPreheatLogOK().WithPayload(string(l))
 }
 
 // ListProvidersUnderProject is Get all providers at project level
@@ -698,6 +734,8 @@ func (api *preheatAPI) ListProvidersUnderProject(ctx context.Context, params ope
 		providers = append(providers, &models.ProviderUnderProject{
 			ID:       instance.ID,
 			Provider: fmt.Sprintf("%s %s-%s", instance.Vendor, instance.Name, instance.Endpoint),
+			Default:  instance.Default,
+			Enabled:  instance.Enabled,
 		})
 	}
 

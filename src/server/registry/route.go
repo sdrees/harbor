@@ -46,13 +46,14 @@ func RegisterRoutes() {
 	root.NewRoute().
 		Method(http.MethodGet).
 		Path("/*/manifests/:reference").
-		Middleware(repoproxy.ManifestGetMiddleware()).
+		Middleware(repoproxy.ManifestMiddleware()).
 		Middleware(contenttrust.Middleware()).
 		Middleware(vulnerable.Middleware()).
 		HandlerFunc(getManifest)
 	root.NewRoute().
 		Method(http.MethodHead).
 		Path("/*/manifests/:reference").
+		Middleware(repoproxy.ManifestMiddleware()).
 		HandlerFunc(getManifest)
 	root.NewRoute().
 		Method(http.MethodDelete).
@@ -77,6 +78,7 @@ func RegisterRoutes() {
 	root.NewRoute().
 		Method(http.MethodPost).
 		Path("/*/blobs/uploads").
+		Middleware(repoproxy.DisableBlobAndManifestUploadMiddleware()).
 		Middleware(quota.PostInitiateBlobUploadMiddleware()).
 		Middleware(blob.PostInitiateBlobUploadMiddleware()).
 		Handler(proxy)
@@ -84,13 +86,11 @@ func RegisterRoutes() {
 	root.NewRoute().
 		Method(http.MethodPatch).
 		Path("/*/blobs/uploads/:session_id").
-		Middleware(repoproxy.DisableBlobAndManifestUploadMiddleware()).
 		Middleware(blob.PatchBlobUploadMiddleware()).
 		Handler(proxy)
 	root.NewRoute().
 		Method(http.MethodPut).
 		Path("/*/blobs/uploads/:session_id").
-		Middleware(repoproxy.DisableBlobAndManifestUploadMiddleware()).
 		Middleware(quota.PutBlobUploadMiddleware()).
 		Middleware(blob.PutBlobUploadMiddleware()).
 		Handler(proxy)

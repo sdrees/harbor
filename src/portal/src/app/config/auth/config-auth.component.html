@@ -360,7 +360,19 @@
                 [(ngModel)]="currentConfig.oidc_groups_claim.value" id="oidcGroupClaim" size="40"
                  [disabled]="disabled(currentConfig.oidc_groups_claim)" />
         </clr-input-container>
-
+        <clr-input-container>
+            <label  for="OIDCAdminGroup">{{'CONFIG.OIDC.OIDC_ADMIN_GROUP' | translate}}
+                <clr-tooltip>
+                    <clr-icon clrTooltipTrigger shape="info-circle" size="24"></clr-icon>
+                    <clr-tooltip-content clrPosition="top-right" clrSize="lg" *clrIfOpen>
+                        <span>{{'CONFIG.OIDC.OIDC_ADMIN_GROUP_INFO' | translate}}</span>
+                    </clr-tooltip-content>
+                </clr-tooltip>
+            </label>
+            <input clrInput name="OIDCAdminGroup" type="text" #ngOIDCAdminGroup="ngModel"
+                [(ngModel)]="currentConfig.oidc_admin_group.value" id="OIDCAdminGroup" size="40"
+                 [disabled]="disabled(currentConfig.oidc_admin_group)" />
+        </clr-input-container>
         <clr-input-container>
                 <label class="required" for="oidcScope">{{'CONFIG.OIDC.SCOPE' | translate}}
                     <clr-tooltip>
@@ -402,6 +414,7 @@
             <clr-checkbox-wrapper>
                 <input type="checkbox" clrCheckbox name="oidcAutoOnboard" id="oidcAutoOnboard"
                 [disabled]="disabled(currentConfig.oidc_auto_onboard)"
+                (change)="changeAutoOnBoard()"
                 [(ngModel)]="currentConfig.oidc_auto_onboard.value" />
             </clr-checkbox-wrapper>
         </clr-checkbox-container>         
@@ -414,9 +427,9 @@
                     </clr-tooltip-content>
                 </clr-tooltip>
             </label>
-            <input clrInput name="oidcUserClaim" type="text" #oidcUserClaimInput="ngModel"
+            <input autocomplete="off" clrInput name="oidcUserClaim" type="text" #oidcUserClaimInput="ngModel"
                 [(ngModel)]="currentConfig.oidc_user_claim.value" id="oidcUserClaim" size="40"
-                [disabled]="disabled(currentConfig.oidc_user_claim)" pattern="^[a-zA-Z0-9_-]*$">
+                [disabled]="!currentConfig.oidc_auto_onboard.value || disabled(currentConfig.oidc_user_claim)" pattern="^[a-zA-Z0-9_-]*$">
         </clr-input-container>
         <div class="oidc-tip">{{ 'CONFIG.OIDC.OIDC_REDIREC_URL' | translate}}
             <span>{{redirectUrl}}/c/oidc/callback</span>

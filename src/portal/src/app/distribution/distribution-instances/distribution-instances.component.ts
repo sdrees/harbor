@@ -28,6 +28,7 @@ import { Instance } from "../../../../ng-swagger-gen/models/instance";
 import { PreheatService } from "../../../../ng-swagger-gen/services/preheat.service";
 import { Metadata } from '../../../../ng-swagger-gen/models/metadata';
 import { FrontInstance, HEALTHY, UNHEALTHY } from '../distribution-interface';
+import { ClrDatagridStateInterface } from '@clr/angular';
 
 interface MultiOperateData {
   operation: string;
@@ -59,7 +60,7 @@ export class DistributionInstancesComponent implements OnInit, OnDestroy {
   private loading: boolean = true;
   private operationSubscription: Subscription;
 
-  @ViewChild('setupModal', { static: false })
+  @ViewChild('setupModal')
   setupModal: DistributionSetupModalComponent;
   providerMap: {[key: string]: Metadata} = {};
   providers: Metadata[] = [];
@@ -115,7 +116,10 @@ export class DistributionInstancesComponent implements OnInit, OnDestroy {
     );
   }
 
-  loadData() {
+  loadData(state?: ClrDatagridStateInterface) {
+    if (state && state.page) {
+      this.pageSize = state.page.size;
+    }
     this.selectedRow = [];
     const queryParam: PreheatService.ListInstancesParams = {
       page: this.currentPage,

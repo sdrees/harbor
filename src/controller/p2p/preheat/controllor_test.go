@@ -15,10 +15,12 @@ import (
 	providerModel "github.com/goharbor/harbor/src/pkg/p2p/preheat/models/provider"
 	"github.com/goharbor/harbor/src/pkg/p2p/preheat/provider"
 	"github.com/goharbor/harbor/src/pkg/p2p/preheat/provider/auth"
+	taskModel "github.com/goharbor/harbor/src/pkg/task"
 	ormtesting "github.com/goharbor/harbor/src/testing/lib/orm"
 	"github.com/goharbor/harbor/src/testing/pkg/p2p/preheat/instance"
 	pmocks "github.com/goharbor/harbor/src/testing/pkg/p2p/preheat/policy"
 	smocks "github.com/goharbor/harbor/src/testing/pkg/scheduler"
+	tmocks "github.com/goharbor/harbor/src/testing/pkg/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -32,6 +34,7 @@ type preheatSuite struct {
 	fakePolicyMgr      *pmocks.FakeManager
 	fakeScheduler      *smocks.Scheduler
 	mockInstanceServer *httptest.Server
+	fakeExecutionMgr   *tmocks.ExecutionManager
 }
 
 func TestPreheatSuite(t *testing.T) {
@@ -39,21 +42,24 @@ func TestPreheatSuite(t *testing.T) {
 	fakeInstanceMgr := &instance.FakeManager{}
 	fakePolicyMgr := &pmocks.FakeManager{}
 	fakeScheduler := &smocks.Scheduler{}
+	fakeExecutionMgr := &tmocks.ExecutionManager{}
 
 	var c = &controller{
-		iManager:  fakeInstanceMgr,
-		pManager:  fakePolicyMgr,
-		scheduler: fakeScheduler,
+		iManager:     fakeInstanceMgr,
+		pManager:     fakePolicyMgr,
+		scheduler:    fakeScheduler,
+		executionMgr: fakeExecutionMgr,
 	}
 	assert.NotNil(t, c)
 
 	ctx := orm.NewContext(context.TODO(), &ormtesting.FakeOrmer{})
 	suite.Run(t, &preheatSuite{
-		ctx:             ctx,
-		controller:      c,
-		fakeInstanceMgr: fakeInstanceMgr,
-		fakePolicyMgr:   fakePolicyMgr,
-		fakeScheduler:   fakeScheduler,
+		ctx:              ctx,
+		controller:       c,
+		fakeInstanceMgr:  fakeInstanceMgr,
+		fakePolicyMgr:    fakePolicyMgr,
+		fakeScheduler:    fakeScheduler,
+		fakeExecutionMgr: fakeExecutionMgr,
 	})
 }
 
@@ -168,21 +174,52 @@ func (s *preheatSuite) TestCreateInstance() {
 }
 
 func (s *preheatSuite) TestDeleteInstance() {
-	err := s.controller.DeleteInstance(s.ctx, 0)
-	s.Error(err)
+	// instance be used should not be deleted
+	s.fakeInstanceMgr.On("Get", s.ctx, int64(1)).Return(&providerModel.Instance{ID: 1}, nil)
+	s.fakePolicyMgr.On("ListPolicies", s.ctx, &q.Query{Keywords: map[string]interface{}{"provider_id": int64(1)}}).Return([]*policy.Schema{
+		{
+			ProviderID: 1,
+		},
+	}, nil)
+	err := s.controller.DeleteInstance(s.ctx, int64(1))
+	s.Error(err, "instance should not be deleted")
 
-	err = s.controller.DeleteInstance(s.ctx, int64(1))
-	s.NoError(err)
+	s.fakeInstanceMgr.On("Get", s.ctx, int64(2)).Return(&providerModel.Instance{ID: 2}, nil)
+	s.fakePolicyMgr.On("ListPolicies", s.ctx, &q.Query{Keywords: map[string]interface{}{"provider_id": int64(2)}}).Return([]*policy.Schema{}, nil)
+	s.fakeInstanceMgr.On("Delete", s.ctx, int64(2)).Return(nil)
+	err = s.controller.DeleteInstance(s.ctx, int64(2))
+	s.NoError(err, "instance can be deleted")
 }
 
 func (s *preheatSuite) TestUpdateInstance() {
-	s.fakeInstanceMgr.On("Update", s.ctx, mock.Anything).Return(errors.New("no properties provided to update"))
-	err := s.controller.UpdateInstance(s.ctx, nil)
-	s.Error(err)
+	// normal update
+	s.fakeInstanceMgr.On("Get", s.ctx, int64(1000)).Return(&providerModel.Instance{ID: 1000}, nil)
+	s.fakeInstanceMgr.On("Update", s.ctx, &providerModel.Instance{ID: 1000, Enabled: true}).Return(nil)
+	err := s.controller.UpdateInstance(s.ctx, &providerModel.Instance{ID: 1000, Enabled: true})
+	s.NoError(err, "instance can be updated")
 
-	s.fakeInstanceMgr.On("Update", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	err = s.controller.UpdateInstance(s.ctx, &providerModel.Instance{ID: 1}, "enabled")
-	s.NoError(err)
+	// disable instance should error due to with policy used
+	s.fakeInstanceMgr.On("Get", s.ctx, int64(1001)).Return(&providerModel.Instance{ID: 1001}, nil)
+	s.fakeInstanceMgr.On("Update", s.ctx, &providerModel.Instance{ID: 1001}).Return(nil)
+	s.fakePolicyMgr.On("ListPolicies", s.ctx, &q.Query{Keywords: map[string]interface{}{"provider_id": int64(1001)}}).Return([]*policy.Schema{
+		{ProviderID: 1001},
+	}, nil)
+	err = s.controller.UpdateInstance(s.ctx, &providerModel.Instance{ID: 1001})
+	s.Error(err, "instance should not be disabled")
+
+	// disable instance can be deleted if no policy used
+	s.fakeInstanceMgr.On("Get", s.ctx, int64(1002)).Return(&providerModel.Instance{ID: 1002}, nil)
+	s.fakeInstanceMgr.On("Update", s.ctx, &providerModel.Instance{ID: 1002}).Return(nil)
+	s.fakePolicyMgr.On("ListPolicies", s.ctx, &q.Query{Keywords: map[string]interface{}{"provider_id": int64(1002)}}).Return([]*policy.Schema{}, nil)
+	err = s.controller.UpdateInstance(s.ctx, &providerModel.Instance{ID: 1002})
+	s.NoError(err, "instance can be disabled")
+
+	// not support change vendor type
+	s.fakeInstanceMgr.On("Get", s.ctx, int64(1003)).Return(&providerModel.Instance{ID: 1003, Vendor: "dragonfly"}, nil)
+	s.fakeInstanceMgr.On("Update", s.ctx, &providerModel.Instance{ID: 1003, Vendor: "kraken"}).Return(nil)
+	s.fakePolicyMgr.On("ListPolicies", s.ctx, &q.Query{Keywords: map[string]interface{}{"provider_id": int64(1003)}}).Return([]*policy.Schema{}, nil)
+	err = s.controller.UpdateInstance(s.ctx, &providerModel.Instance{ID: 1003, Vendor: "kraken"})
+	s.Error(err, "provider vendor cannot be changed")
 }
 
 func (s *preheatSuite) TestGetInstance() {
@@ -204,10 +241,10 @@ func (s *preheatSuite) TestCreatePolicy() {
 		FiltersStr: `[{"type":"repository","value":"harbor*"},{"type":"tag","value":"2*"}]`,
 		TriggerStr: fmt.Sprintf(`{"type":"%s", "trigger_setting":{"cron":"* * * * */1"}}`, policy.TriggerTypeScheduled),
 	}
-	s.fakeScheduler.On("Schedule", s.ctx, mock.Anything, mock.Anything, mock.Anything).Return(int64(1), nil)
+	s.fakeScheduler.On("Schedule", s.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(int64(1), nil)
 	s.fakePolicyMgr.On("Create", s.ctx, policy).Return(int64(1), nil)
 	s.fakePolicyMgr.On("Update", s.ctx, mock.Anything, mock.Anything).Return(nil)
-	s.fakeScheduler.On("UnSchedule", s.ctx, mock.Anything).Return(nil)
+	s.fakeScheduler.On("UnScheduleByVendor", s.ctx, mock.Anything, mock.Anything).Return(nil)
 	id, err := s.controller.CreatePolicy(s.ctx, policy)
 	s.NoError(err)
 	s.Equal(int64(1), id)
@@ -231,7 +268,6 @@ func (s *preheatSuite) TestGetPolicyByName() {
 
 func (s *preheatSuite) TestUpdatePolicy() {
 	var p0 = &policy.Schema{Name: "test", Trigger: &policy.Trigger{Type: policy.TriggerTypeScheduled}}
-	p0.Trigger.Settings.JobID = 1
 	p0.Trigger.Settings.Cron = "* * * * */1"
 	p0.Filters = []*policy.Filter{
 		{
@@ -272,16 +308,22 @@ func (s *preheatSuite) TestUpdatePolicy() {
 
 func (s *preheatSuite) TestDeletePolicy() {
 	var p0 = &policy.Schema{Name: "test", Trigger: &policy.Trigger{Type: policy.TriggerTypeScheduled}}
-	p0.Trigger.Settings.JobID = 1
 	s.fakePolicyMgr.On("Get", s.ctx, int64(1)).Return(p0, nil)
+	s.fakeExecutionMgr.On("List", s.ctx, mock.AnythingOfType("*q.Query")).Return(
+		[]*taskModel.Execution{
+			{ID: 1},
+			{ID: 2},
+		}, nil,
+	)
+	s.fakeExecutionMgr.On("Delete", mock.Anything, mock.Anything).Return(nil)
 	s.fakePolicyMgr.On("Delete", s.ctx, int64(1)).Return(nil)
 	err := s.controller.DeletePolicy(s.ctx, 1)
 	s.NoError(err)
 }
 
 func (s *preheatSuite) TestListPolicies() {
-	s.fakePolicyMgr.On("ListPolicies", s.ctx, mock.Anything).Return([]*policy.Schema{}, nil)
-	p, err := s.controller.ListPolicies(s.ctx, nil)
+	s.fakePolicyMgr.On("ListPolicies", s.ctx, &q.Query{}).Return([]*policy.Schema{}, nil)
+	p, err := s.controller.ListPolicies(s.ctx, &q.Query{})
 	s.NoError(err)
 	s.NotNil(p)
 }
@@ -291,6 +333,22 @@ func (s *preheatSuite) TestListPoliciesByProject() {
 	p, err := s.controller.ListPoliciesByProject(s.ctx, 1, nil)
 	s.NoError(err)
 	s.NotNil(p)
+}
+
+func (s *preheatSuite) TestDeletePoliciesOfProject() {
+	fakePolicies := []*policy.Schema{
+		{ID: 1000, Name: "1-should-delete", ProjectID: 10},
+		{ID: 1001, Name: "2-should-delete", ProjectID: 10},
+	}
+	s.fakePolicyMgr.On("ListPoliciesByProject", s.ctx, int64(10), mock.Anything).Return(fakePolicies, nil)
+	for _, p := range fakePolicies {
+		s.fakePolicyMgr.On("Get", s.ctx, p.ID).Return(p, nil)
+		s.fakePolicyMgr.On("Delete", s.ctx, p.ID).Return(nil)
+		s.fakeExecutionMgr.On("List", s.ctx, &q.Query{Keywords: map[string]interface{}{"VendorID": p.ID, "VendorType": "P2P_PREHEAT"}}).Return([]*taskModel.Execution{}, nil)
+	}
+
+	err := s.controller.DeletePoliciesOfProject(s.ctx, 10)
+	s.NoError(err)
 }
 
 func (s *preheatSuite) TestCheckHealth() {

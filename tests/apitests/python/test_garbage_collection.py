@@ -5,12 +5,12 @@ import time
 
 from testutils import ADMIN_CLIENT
 from testutils import TEARDOWN
+from testutils import harbor_server
 from library.user import User
 from library.system import System
 from library.project import Project
 from library.repository import Repository
 from library.repository import push_image_to_project
-from testutils import harbor_server
 from library.base import _assert_status_code
 from library.repository import push_special_image_to_project
 from library.artifact import Artifact
@@ -29,7 +29,7 @@ class TestProjects(unittest.TestCase):
 
     @classmethod
     def tearDown(self):
-        print "Case completed"
+        print("Case completed")
 
     @unittest.skipIf(TEARDOWN == True, "Test data won't be erased.")
     def test_ClearData(self):
@@ -96,7 +96,6 @@ class TestProjects(unittest.TestCase):
         self.system.validate_deletion_success(gc_id, **ADMIN_CLIENT)
 
         artifacts = self.artifact.list_artifacts(TestProjects.project_gc_untag_name, self.repo_name_untag, **TestProjects.USER_GC_CLIENT)
-        print artifacts
         _assert_status_code(len(artifacts), 1)
 
         time.sleep(5)
@@ -112,7 +111,6 @@ class TestProjects(unittest.TestCase):
 
         #11. Repository with untag image should be still there;
         repo_data_untag = self.repo.list_repositories(TestProjects.project_gc_untag_name, **TestProjects.USER_GC_CLIENT)
-        print "repo_data_untag:", repo_data_untag
         _assert_status_code(len(repo_data_untag), 1)
         self.assertEqual(TestProjects.project_gc_untag_name + "/" + self.repo_name_untag , repo_data_untag[0].name)
 
