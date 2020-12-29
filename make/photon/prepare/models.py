@@ -4,7 +4,7 @@ from pathlib import Path
 from shutil import copytree, rmtree
 
 from g import internal_tls_dir, DEFAULT_GID, DEFAULT_UID, PG_GID, PG_UID
-from utils.misc import check_permission, owner_can_read, get_realpath
+from utils.misc import check_permission, owner_can_read, get_realpath, port_number_valid
 
 
 class InternalTLS:
@@ -17,11 +17,6 @@ class InternalTLS:
         'registryctl.crt', 'registryctl.key',
         'registry.crt', 'registry.key',
         'portal.crt', 'portal.key'
-    }
-
-    clair_certs_filename = {
-        'clair_adapter.crt', 'clair_adapter.key',
-        'clair.crt', 'clair.key'
     }
 
     trivy_certs_filename = {
@@ -49,8 +44,6 @@ class InternalTLS:
         self.tls_dir = tls_dir
         if self.enabled:
             self.required_filenames = self.harbor_certs_filename
-            if kwargs.get('with_clair'):
-                self.required_filenames.update(self.clair_certs_filename)
             if kwargs.get('with_notary'):
                 self.required_filenames.update(self.notary_certs_filename)
             if kwargs.get('with_chartmuseum'):
@@ -139,3 +132,12 @@ class InternalTLS:
                 os.chown(file, DEFAULT_UID, DEFAULT_GID)
 
 
+class Metric:
+    def __init__(self, enabled: bool = False, port: int = 8080, path: str = "metrics" ):
+        self.enabled = enabled
+        self.port = port
+        self.path = path
+
+    def validate(self):
+        if not port_number_valid(self.port):
+            raise Exception('Port number in metrics is not valid')

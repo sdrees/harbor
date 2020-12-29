@@ -15,29 +15,32 @@
 package robot
 
 import (
+	"context"
 	"sync"
 
+	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/rbac"
-	"github.com/goharbor/harbor/src/core/promgr"
+	"github.com/goharbor/harbor/src/controller/project"
 	"github.com/goharbor/harbor/src/pkg/permission/evaluator"
 	"github.com/goharbor/harbor/src/pkg/permission/types"
-	"github.com/goharbor/harbor/src/pkg/robot/model"
+	"github.com/goharbor/harbor/src/pkg/robot2/model"
 )
 
 // SecurityContext implements security.Context interface based on database
 type SecurityContext struct {
-	robot     *model.Robot
-	pm        promgr.ProjectManager
-	policy    []*types.Policy
-	evaluator evaluator.Evaluator
-	once      sync.Once
+	robot         *model.Robot
+	isSystemLevel bool
+	ctl           project.Controller
+	policy        []*types.Policy
+	evaluator     evaluator.Evaluator
+	once          sync.Once
 }
 
 // NewSecurityContext ...
-func NewSecurityContext(robot *model.Robot, pm promgr.ProjectManager, policy []*types.Policy) *SecurityContext {
+func NewSecurityContext(robot *model.Robot, isSystemLevel bool, policy []*types.Policy) *SecurityContext {
 	return &SecurityContext{
+		ctl:    project.Ctl,
 		robot:  robot,
-		pm:     pm,
 		policy: policy,
 	}
 }
@@ -72,14 +75,30 @@ func (s *SecurityContext) IsSolutionUser() bool {
 }
 
 // Can returns whether the robot can do action on resource
-func (s *SecurityContext) Can(action types.Action, resource types.Resource) bool {
+func (s *SecurityContext) Can(ctx context.Context, action types.Action, resource types.Resource) bool {
 	s.once.Do(func() {
-		robotFactory := func(ns types.Namespace) types.RBACUser {
-			return NewRobot(s.GetUsername(), ns, s.policy)
+		if s.isSystemLevel {
+			s.evaluator = rbac.NewProjectEvaluator(s.ctl, rbac.NewBuilderForPolicies(s.GetUsername(), s.policy))
+		} else {
+			s.evaluator = rbac.NewProjectEvaluator(s.ctl, rbac.NewBuilderForPolicies(s.GetUsername(), s.policy, filterRobotPolicies))
 		}
-
-		s.evaluator = rbac.NewProjectRobotEvaluator(s, s.pm, robotFactory)
 	})
 
-	return s.evaluator != nil && s.evaluator.HasPermission(resource, action)
+	return s.evaluator != nil && s.evaluator.HasPermission(ctx, resource, action)
+}
+
+func filterRobotPolicies(p *models.Project, policies []*types.Policy) []*types.Policy {
+	namespace := rbac.NewProjectNamespace(p.ProjectID)
+
+	var results []*types.Policy
+	for _, policy := range policies {
+		if types.ResourceAllowedInNamespace(policy.Resource, namespace) {
+			results = append(results, policy)
+			// give the PUSH action a pull access
+			if policy.Action == rbac.ActionPush {
+				results = append(results, &types.Policy{Resource: policy.Resource, Action: rbac.ActionPull})
+			}
+		}
+	}
+	return results
 }

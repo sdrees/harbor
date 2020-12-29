@@ -158,7 +158,7 @@ Harbor backend is written in [Go](http://golang.org/). If you don't have a Harbo
 |   1.9    |    1.12.12    |
 |   1.10   |    1.12.12    |
 |   2.0    |    1.13.15    |
-|   2.1    |    1.14.7     |
+|   2.1    |    1.15.6     |
 
 Ensure your GOPATH and PATH have been configured in accordance with the Go environment instructions.
 
@@ -317,7 +317,7 @@ Once your pull request has been opened, harbor will run two CI pipelines against
 * If the coverage dramatic decline, you need to commit unit test to coverage your code.
 2. In the drone CI, the E2E test will be triggered against the pull request. Also, the source code will be checked via `gosec`, and the result is stored in google storage for later analysis. The pipeline is about to build and install harbor from source code, then to run four very basic E2E tests to validate the basic functionalities of harbor, like:
 * Registry Basic Verification, to validate the image can be pulled and pushed successful.
-* Clair Basic Verification, to validate the image can be scanned successful.
+* Trivy Basic Verification, to validate the image can be scanned successful.
 * Notary Basic Verification, to validate the image can be signed successful.
 * Ldap Basic Verification, to validate harbor can work in LDAP environment.
 

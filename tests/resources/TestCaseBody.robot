@@ -212,7 +212,6 @@ Helm CLI Push Without Sign In Harbor
     Switch To Project Charts
     Go Into Chart Version  ${harbor_chart_name}
     Retry Wait Until Page Contains  ${harbor_chart_version}
-    Capture Page Screenshot
 
 Helm3 CLI Push Without Sign In Harbor
     [Arguments]  ${sign_in_user}  ${sign_in_pwd}
@@ -221,7 +220,6 @@ Helm3 CLI Push Without Sign In Harbor
     Helm Repo Push  ${sign_in_user}  ${sign_in_pwd}  ${harbor_chart_filename}  helm_repo_name=${HARBOR_URL}/chartrepo/project${d}  helm_cmd=helm3
     Switch To Project Charts
     Retry Double Keywords When Error  Go Into Chart Version  ${harbor_chart_name}  Retry Wait Until Page Contains  ${harbor_chart_version}
-    Capture Page Screenshot
 
 #Important Note: All CVE IDs in CVE Allowlist cases must unique!
 Body Of Verfiy System Level CVE Allowlist
@@ -334,12 +332,32 @@ Body Of Replication Of Push Images to Registry Triggered By Event
     Push Special Image To Project  project${d}  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  ${image}  tags=@{tags}  size=12
     Filter Replication Rule  rule${d}
     Select Rule  rule${d}
-    Run Keyword If  '${provider}'=='docker-hub'  Docker Image Can Be Pulled  ${dest_namespace}/${image}:${tag1}   times=3
+    ${endpoint_body}=  Fetch From Right  ${endpoint}  //
+    ${dest_namespace}=  Set Variable If  '${provider}'=='gitlab'  ${endpoint_body}/${dest_namespace}  ${dest_namespace}
+    Run Keyword If  '${provider}'=='docker-hub' or '${provider}'=='gitlab'  Docker Image Can Be Pulled  ${dest_namespace}/${image}:${tag1}   times=3
     Executions Result Count Should Be  Succeeded  event_based  1
     Go Into Project  project${d}
     Delete Repo  project${d}
-    Run Keyword If  '${provider}'=='docker-hub'  Docker Image Can Not Be Pulled  ${dest_namespace}/${image}:${tag1}
+    Run Keyword If  '${provider}'=='docker-hub' or '${provider}'=='gitlab'  Docker Image Can Not Be Pulled  ${dest_namespace}/${image}:${tag1}
     Switch To Replication Manage
     Filter Replication Rule  rule${d}
     Select Rule  rule${d}
     Executions Result Count Should Be  Succeeded  event_based  2
+
+Body Of Replication Of Pull Images from Registry To Self
+    [Arguments]  ${provider}  ${endpoint}  ${username}  ${pwd}  ${project_name}  @{target_images}
+    Init Chrome Driver
+    ${d}=    Get Current Date    result_format=%m%s
+    #login source
+    Sign In Harbor    ${HARBOR_URL}    ${HARBOR_ADMIN}    ${HARBOR_PASSWORD}
+    Create An New Project And Go Into Project  project${d}
+    Switch To Registries
+    Create A New Endpoint    ${provider}    e${d}    ${endpoint}    ${username}    ${pwd}    Y
+    Switch To Replication Manage
+    Create A Rule With Existing Endpoint    rule${d}    pull    ${project_name}    image    e${d}    project${d}
+    Select Rule And Replicate  rule${d}
+    FOR    ${item}    IN    @{target_images}
+        Log To Console  Check image replicated to Project project${d} ${item}
+        Image Should Be Replicated To Project  project${d}   ${item}  times=2
+    END
+    Close Browser

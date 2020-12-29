@@ -19,7 +19,6 @@ import (
 	"net/http"
 
 	lib_http "github.com/goharbor/harbor/src/lib/http"
-
 	"github.com/goharbor/harbor/src/server/middleware"
 	"github.com/goharbor/harbor/src/server/middleware/blob"
 	"github.com/goharbor/harbor/src/server/middleware/quota"
@@ -29,13 +28,20 @@ import (
 // New returns http handler for API V2.0
 func New() http.Handler {
 	h, api, err := restapi.HandlerAPI(restapi.Config{
-		ArtifactAPI:   newArtifactAPI(),
-		RepositoryAPI: newRepositoryAPI(),
-		AuditlogAPI:   newAuditLogAPI(),
-		ScanAPI:       newScanAPI(),
-		ProjectAPI:    newProjectAPI(),
-		PreheatAPI:    newPreheatAPI(),
-		IconAPI:       newIconAPI(),
+		ArtifactAPI:    newArtifactAPI(),
+		RepositoryAPI:  newRepositoryAPI(),
+		AuditlogAPI:    newAuditLogAPI(),
+		ScanAPI:        newScanAPI(),
+		ScanAllAPI:     newScanAllAPI(),
+		ProjectAPI:     newProjectAPI(),
+		PreheatAPI:     newPreheatAPI(),
+		IconAPI:        newIconAPI(),
+		RobotAPI:       newRobotAPI(),
+		Robotv1API:     newRobotV1API(),
+		ReplicationAPI: newReplicationAPI(),
+		SysteminfoAPI:  newSystemInfoAPI(),
+		PingAPI:        newPingAPI(),
+		GCAPI:          newGCAPI(),
 	})
 	if err != nil {
 		log.Fatal(err)

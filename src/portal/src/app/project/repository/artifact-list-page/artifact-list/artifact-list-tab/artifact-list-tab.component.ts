@@ -58,14 +58,13 @@ import {
   ArtifactFront as Artifact,
   mutipleFilter,
   artifactPullCommands,
-  artifactDefault
+  artifactDefault, ArtifactFront
 } from '../../../artifact/artifact';
 import { Project } from "../../../../project";
 import { ArtifactService as NewArtifactService } from "../../../../../../../ng-swagger-gen/services/artifact.service";
 import { ADDITIONS } from "../../../artifact/artifact-additions/models";
 import { Platform } from "../../../../../../../ng-swagger-gen/models/platform";
-import { IconService } from '../../../../../../../ng-swagger-gen/services/icon.service';
-import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { SafeUrl } from '@angular/platform-browser';
 export interface LabelState {
   iconsShow: boolean;
   label: Label;
@@ -91,7 +90,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   @Input() registryUrl: string;
   @Input() withNotary: boolean;
   @Input() withAdmiral: boolean;
-  artifactList: Artifact[] = [];
+  artifactList: ArtifactFront[] = [];
   availableTime = AVAILABLE_TIME;
   showTagManifestOpened: boolean;
   retagDialogOpened: boolean;
@@ -250,11 +249,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
           if (this.filterName.length) {
             this.filterOnGoing = true;
             this.imageFilterLabels.forEach(data => {
-              if (data.label.name.indexOf(this.filterName) !== -1) {
-                data.show = true;
-              } else {
-                data.show = false;
-              }
+              data.show = data.label.name.indexOf(this.filterName) !== -1;
             });
           }
         });
@@ -267,11 +262,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
           if (this.stickName.length) {
             this.filterOnGoing = true;
             this.imageStickLabels.forEach(data => {
-              if (data.label.name.indexOf(this.stickName) !== -1) {
-                data.show = true;
-              } else {
-                data.show = false;
-              }
+              data.show = data.label.name.indexOf(this.stickName) !== -1;
             });
           }
         });
@@ -350,8 +341,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
           withImmutableStatus: true,
           withLabel: true,
           withScanOverview: true,
-          withSignature: true,
-          withTag: true
+          withTag: false
         };
         this.newArtifactService.getArtifact(artifactParam).subscribe(
           res => {
@@ -367,8 +357,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
                   withImmutableStatus: true,
                   withLabel: true,
                   withScanOverview: true,
-                  withSignature: true,
-                  withTag: true
+                  withTag: false
                 };
                 platFormAttr.push({platform: child.platform});
                 observableLists.push(this.newArtifactService.getArtifact(childParams));
@@ -382,6 +371,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
                 artifact.platform = clone(platFormAttr[index].platform);
               });
               this.getPullCommand(this.artifactList);
+              this.getArtifactTagsAsync(this.artifactList);
               this.getIconsFromBackEnd();
             }, error => {
               this.errorHandlerService.error(error);
@@ -396,7 +386,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
           repositoryName: dbEncodeURIComponent(this.repoName),
           withLabel: true,
           withScanOverview: true,
-          withTag: true
+          withTag: false
         };
         Object.assign(listArtifactParams, params);
         this.newArtifactService.listArtifactsResponse(listArtifactParams)
@@ -412,6 +402,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
             this.artifactList = doSorting<Artifact>(this.artifactList, state);
 
             this.getPullCommand(this.artifactList);
+            this.getArtifactTagsAsync(this.artifactList);
             this.getIconsFromBackEnd();
           }, error => {
             // error
@@ -562,21 +553,9 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
 
   filterLabel(labelInfo: LabelState): void {
     let labelId = labelInfo.label.id;
-    // insert the unselected label to groups with the same icons
-    let preLabelInfo = this.imageFilterLabels.find(data => data.label.id === this.filterOneLabel.id);
-    if (preLabelInfo) {
-      this.sortOperation(this.imageFilterLabels, preLabelInfo);
-    }
-
     this.imageFilterLabels.filter(data => {
-      if (data.label.id !== labelId) {
-        data.iconsShow = false;
-      } else {
-        data.iconsShow = true;
-      }
+      data.iconsShow = data.label.id === labelId;
     });
-    this.imageFilterLabels.splice(this.imageFilterLabels.indexOf(labelInfo), 1);
-    this.imageFilterLabels.unshift(labelInfo);
     this.filterOneLabel = labelInfo.label;
 
     // reload data
@@ -595,12 +574,8 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   }
 
   unFilterLabel(labelInfo: LabelState): void {
-    // insert the unselected label to groups with the same icons
-    this.sortOperation(this.imageFilterLabels, labelInfo);
-
     this.filterOneLabel = this.initFilter;
     labelInfo.iconsShow = false;
-
     // reload data
     this.currentPage = 1;
     let st: ClrDatagridStateInterface = this.currentState;
@@ -618,20 +593,31 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   closeFilter(): void {
     this.openLabelFilterPanel = false;
   }
-
+  reSortImageFilterLabels() {
+    if (this.imageFilterLabels && this.imageFilterLabels.length) {
+      for (let i = 0; i < this.imageFilterLabels.length; i++) {
+        if (this.imageFilterLabels[i].iconsShow) {
+          const arr: LabelState[] = this.imageFilterLabels.splice(i, 1);
+          this.imageFilterLabels.unshift(...arr);
+          break;
+        }
+      }
+    }
+  }
+  getFilterPlaceholder(): string {
+    return this.showlabel ? "" : 'ARTIFACT.FILTER_FOR_ARTIFACTS';
+  }
   openFlagEvent(isOpen: boolean): void {
     if (isOpen) {
       this.openLabelFilterPanel = true;
+      // every time  when filer panel opens, resort imageFilterLabels labels
+      this.reSortImageFilterLabels();
       this.openLabelFilterPiece = true;
       this.openSelectFilterPiece = true;
       this.filterName = '';
       // redisplay all labels
       this.imageFilterLabels.forEach(data => {
-        if (data.label.name.indexOf(this.filterName) !== -1) {
-          data.show = true;
-        } else {
-          data.show = false;
-        }
+        data.show = data.label.name.indexOf(this.filterName) !== -1;
       });
     } else {
       this.openLabelFilterPanel = false;
@@ -957,6 +943,8 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
     this.lastFilteredTagName = '';
     if (this.filterByType === 'labels') {
       this.openLabelFilterPanel = true;
+      // every time  when filer panel opens, resort imageFilterLabels labels
+      this.reSortImageFilterLabels();
       this.openLabelFilterPiece = true;
     } else {
       this.openLabelFilterPiece = false;
@@ -1022,5 +1010,32 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   }
   getIcon(icon: string): SafeUrl {
     return this.artifactService.getIcon(icon);
+  }
+  // get Tags and display less than 9 tags(too many tags will make UI stuck)
+  getArtifactTagsAsync(artifacts: ArtifactFront[]) {
+    if (artifacts && artifacts.length) {
+      artifacts.forEach(item => {
+        const listTagParams: NewArtifactService.ListTagsParams = {
+          projectName: this.projectName,
+          repositoryName: dbEncodeURIComponent(this.repoName),
+          reference: item.digest,
+          withSignature: true,
+          withImmutableStatus: true,
+          page: 1,
+          pageSize: 8
+        };
+        this.newArtifactService.listTagsResponse(listTagParams).subscribe(
+            res => {
+              if (res.headers) {
+                let xHeader: string = res.headers.get("x-total-count");
+                if (xHeader) {
+                  item.tagNumber = Number.parseInt(xHeader);
+                }
+              }
+              item.tags = res.body;
+            }
+        );
+      });
+    }
   }
 }

@@ -42,7 +42,11 @@ import (
 	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/core/middlewares"
 	"github.com/goharbor/harbor/src/core/service/token"
+	"github.com/goharbor/harbor/src/lib/cache"
+	_ "github.com/goharbor/harbor/src/lib/cache/memory" // memory cache
+	_ "github.com/goharbor/harbor/src/lib/cache/redis"  // redis cache
 	"github.com/goharbor/harbor/src/lib/log"
+	"github.com/goharbor/harbor/src/lib/metric"
 	"github.com/goharbor/harbor/src/migration"
 	"github.com/goharbor/harbor/src/pkg/notification"
 	_ "github.com/goharbor/harbor/src/pkg/notifier/topic"
@@ -156,12 +160,22 @@ func main() {
 			beego.BConfig.WebConfig.Session.SessionProvider = "redis"
 			beego.BConfig.WebConfig.Session.SessionProviderConfig = strings.Join(ss, ",")
 		}
+
+		log.Info("initializing cache ...")
+		if err := cache.Initialize(u.Scheme, redisURL); err != nil {
+			log.Fatalf("failed to initialize cache: %v", err)
+		}
 	}
 	beego.AddTemplateExt("htm")
 
 	log.Info("initializing configurations...")
 	config.Init()
 	log.Info("configurations initialization completed")
+	metricCfg := config.Metric()
+	if metricCfg.Enabled {
+		metric.RegisterCollectors()
+		go metric.ServeProm(metricCfg.Path, metricCfg.Port)
+	}
 	token.InitCreators()
 	database, err := config.Database()
 	if err != nil {
@@ -223,7 +237,6 @@ func main() {
 }
 
 const (
-	clairScanner = "Clair"
 	trivyScanner = "Trivy"
 )
 
@@ -245,20 +258,6 @@ func registerScanners() {
 		uninstallScannerNames = append(uninstallScannerNames, trivyScanner)
 	}
 
-	if config.WithClair() {
-		log.Info("Registering Clair scanner")
-		wantedScanners = append(wantedScanners, scanner.Registration{
-			Name:            clairScanner,
-			Description:     "The Clair scanner adapter",
-			URL:             config.ClairAdapterEndpoint(),
-			UseInternalAddr: true,
-			Immutable:       true,
-		})
-	} else {
-		log.Info("Removing Clair scanner")
-		uninstallScannerNames = append(uninstallScannerNames, clairScanner)
-	}
-
 	if err := scan.RemoveImmutableScanners(uninstallScannerNames); err != nil {
 		log.Warningf("failed to remove scanners: %v", err)
 	}
@@ -278,9 +277,6 @@ func registerScanners() {
 func getDefaultScannerName() string {
 	if config.WithTrivy() {
 		return trivyScanner
-	}
-	if config.WithClair() {
-		return clairScanner
 	}
 	return ""
 }

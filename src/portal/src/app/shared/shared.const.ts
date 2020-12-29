@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-export const supportedLangs = ['en-us', 'zh-cn', 'zh-tw', 'es-es', 'fr-fr', 'pt-br', 'tr-tr'];
+export const supportedLangs = ['en-us', 'zh-cn', 'zh-tw', 'es-es', 'fr-fr', 'pt-br', 'tr-tr', 'de-de'];
 export const enLang = "en-us";
 export const languageNames = {
   "en-us": "English",
@@ -20,7 +20,8 @@ export const languageNames = {
   "es-es": "Español",
   "fr-fr": "Français",
   "pt-br": "Português do Brasil",
-  "tr-tr": "Türkçe"
+  "tr-tr": "Türkçe",
+  "de-de": "Deutsch"
 };
 export const enum AlertType {
   DANGER, WARNING, INFO, SUCCESS
@@ -48,7 +49,8 @@ export const enum ConfirmationTargets {
   P2P_PROVIDER,
   P2P_PROVIDER_EXECUTE,
   P2P_PROVIDER_STOP,
-  P2P_PROVIDER_DELETE
+  P2P_PROVIDER_DELETE,
+  ROBOT_ACCOUNT_ENABLE_OR_DISABLE
 }
 
 export const enum ActionType {

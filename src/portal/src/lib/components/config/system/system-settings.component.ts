@@ -25,8 +25,6 @@ import {
 import {forkJoin} from "rxjs";
 
 const fakePass = 'aWpLOSYkIzJTTU4wMDkx';
-const ONE_HOUR_MINUTES: number = 60;
-const ONE_DAY_MINUTES: number = 24 * ONE_HOUR_MINUTES;
 const ONE_THOUSAND: number = 1000;
 const CVE_DETAIL_PRE_URL = `https://nvd.nist.gov/vuln/detail/`;
 const TARGET_BLANK = "_blank";
@@ -82,6 +80,26 @@ export class SystemSettingsComponent implements OnChanges, OnInit {
             this.systemSettings.robot_token_duration.editable;
     }
 
+    get tokenExpirationValue() {
+        return this.systemSettings.token_expiration.value;
+    }
+    set tokenExpirationValue(v) {
+        // convert string to number
+        this.systemSettings.token_expiration.value = +v;
+    }
+    get robotTokenExpirationValue() {
+        return this.systemSettings.robot_token_duration.value;
+    }
+    set robotTokenExpirationValue(v) {
+        // convert string to number
+        this.systemSettings.robot_token_duration.value = +v;
+    }
+    robotNamePrefixEditable(): boolean {
+        return this.systemSettings &&
+            this.systemSettings.robot_name_prefix &&
+            this.systemSettings.robot_name_prefix.editable;
+    }
+
     public isValid(): boolean {
         return this.systemSettingsForm && this.systemSettingsForm.valid;
     }
@@ -108,7 +126,7 @@ export class SystemSettingsComponent implements OnChanges, OnInit {
         let changes = {};
         for (let prop in allChanges) {
             if (prop === 'token_expiration' || prop === 'read_only' || prop === 'project_creation_restriction'
-                || prop === 'robot_token_duration' || prop === 'notification_enable') {
+                || prop === 'robot_token_duration' || prop === 'notification_enable' || prop === 'robot_name_prefix') {
                 changes[prop] = allChanges[prop];
             }
         }
@@ -211,7 +229,6 @@ export class SystemSettingsComponent implements OnChanges, OnInit {
             ack.state === ConfirmationState.CONFIRMED) {
             let changes = this.getChanges();
             this.reset(changes);
-            this.initRobotToken();
             if (!compareValue(this.systemAllowlistOrigin, this.systemAllowlist)) {
                 this.systemAllowlist = clone(this.systemAllowlistOrigin);
             }
@@ -256,7 +273,6 @@ export class SystemSettingsComponent implements OnChanges, OnInit {
     }
 
     ngOnInit() {
-        this.initRobotToken();
         this.getSystemAllowlist();
         this.getSystemInfo();
     }
@@ -286,26 +302,6 @@ export class SystemSettingsComponent implements OnChanges, OnInit {
                 }
             );
     }
-
-    private initRobotToken(): void {
-        if (this.config &&
-            this.config.robot_token_duration) {
-            let robotExpiration = this.config.robot_token_duration.value;
-            this.robotTokenExpiration = Math.floor(robotExpiration / ONE_DAY_MINUTES) + '';
-        }
-    }
-
-    changeToken(v: string) {
-        if (!v || v === "") {
-            return;
-        }
-        if (!(this.config &&
-            this.config.robot_token_duration)) {
-            return;
-        }
-        this.config.robot_token_duration.value = +v * ONE_DAY_MINUTES;
-    }
-
     deleteItem(index: number) {
         this.systemAllowlist.items.splice(index, 1);
     }

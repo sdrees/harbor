@@ -20,13 +20,30 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"strconv"
 
 	"github.com/goharbor/harbor/src/controller/artifact"
 	"github.com/goharbor/harbor/src/controller/artifact/processor"
 	"github.com/goharbor/harbor/src/controller/scan"
+	"github.com/goharbor/harbor/src/lib"
 	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/scan/report"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
+)
+
+const (
+	// ScheduleHourly : 'Hourly'
+	ScheduleHourly = "Hourly"
+	// ScheduleDaily : 'Daily'
+	ScheduleDaily = "Daily"
+	// ScheduleWeekly : 'Weekly'
+	ScheduleWeekly = "Weekly"
+	// ScheduleCustom : 'Custom'
+	ScheduleCustom = "Custom"
+	// ScheduleManual : 'Manual'
+	ScheduleManual = "Manual"
+	// ScheduleNone : 'None'
+	ScheduleNone = "None"
 )
 
 func boolValue(v *bool) bool {
@@ -38,7 +55,7 @@ func boolValue(v *bool) bool {
 }
 
 func resolveVulnerabilitiesAddition(ctx context.Context, artifact *artifact.Artifact) (*processor.Addition, error) {
-	reports, err := scan.DefaultController.GetReport(ctx, artifact, []string{v1.MimeTypeNativeReport})
+	reports, err := scan.DefaultController.GetReport(ctx, artifact, []string{v1.MimeTypeNativeReport, v1.MimeTypeGenericVulnerabilityReport})
 	if err != nil {
 		return nil, err
 	}
@@ -110,4 +127,19 @@ func unescapePathParams(params interface{}, fieldNames ...string) error {
 	}
 
 	return nil
+}
+
+func parseProjectNameOrID(str string, isResourceName *bool) interface{} {
+	if lib.BoolValue(isResourceName) {
+		// always as projectName
+		return str
+	}
+
+	v, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		// it's projectName
+		return str
+	}
+
+	return v // projectID
 }

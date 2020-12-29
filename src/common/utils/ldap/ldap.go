@@ -23,11 +23,10 @@ import (
 	"strings"
 	"time"
 
+	goldap "github.com/go-ldap/ldap/v3"
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/lib/log"
-
-	goldap "gopkg.in/ldap.v2"
 )
 
 // ErrNotFound ...
@@ -424,7 +423,7 @@ func (session *Session) searchGroup(groupDN, filter, gName, groupNameAttribute s
 		groupName = result.Entries[0].Attributes[0].Values[0]
 	}
 	group := models.LdapGroup{
-		GroupDN:   groupDN,
+		GroupDN:   result.Entries[0].DN,
 		GroupName: groupName,
 	}
 	ldapGroups = append(ldapGroups, group)
@@ -434,11 +433,11 @@ func (session *Session) searchGroup(groupDN, filter, gName, groupNameAttribute s
 
 // UnderBaseDN - check if the childDN is under the baseDN, if the baseDN equals current DN, return true
 func UnderBaseDN(baseDN, childDN string) (bool, error) {
-	base, err := goldap.ParseDN(baseDN)
+	base, err := goldap.ParseDN(strings.ToLower(baseDN))
 	if err != nil {
 		return false, err
 	}
-	child, err := goldap.ParseDN(childDN)
+	child, err := goldap.ParseDN(strings.ToLower(childDN))
 	if err != nil {
 		return false, err
 	}

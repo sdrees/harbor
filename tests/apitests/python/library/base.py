@@ -28,7 +28,7 @@ def get_endpoint():
 
 def _create_client(server, credential, debug, api_type="products"):
     cfg = None
-    if api_type in ('projectv2', 'artifact', 'repository', 'scan'):
+    if api_type in ('projectv2', 'artifact', 'repository', 'scan', 'scanall', 'preheat', 'replication', 'robot', 'gc'):
         cfg = v2_swagger_client.Configuration()
     else:
         cfg = swagger_client.Configuration()
@@ -55,9 +55,14 @@ def _create_client(server, credential, debug, api_type="products"):
         "products":   swagger_client.ProductsApi(swagger_client.ApiClient(cfg)),
         "projectv2":  v2_swagger_client.ProjectApi(v2_swagger_client.ApiClient(cfg)),
         "artifact":   v2_swagger_client.ArtifactApi(v2_swagger_client.ApiClient(cfg)),
+        "preheat":   v2_swagger_client.PreheatApi(v2_swagger_client.ApiClient(cfg)),
         "repository": v2_swagger_client.RepositoryApi(v2_swagger_client.ApiClient(cfg)),
         "scan": v2_swagger_client.ScanApi(v2_swagger_client.ApiClient(cfg)),
+        "scanall": v2_swagger_client.ScanAllApi(v2_swagger_client.ApiClient(cfg)),
         "scanner": swagger_client.ScannersApi(swagger_client.ApiClient(cfg)),
+        "replication": v2_swagger_client.ReplicationApi(v2_swagger_client.ApiClient(cfg)),
+        "robot": v2_swagger_client.RobotApi(v2_swagger_client.ApiClient(cfg)),
+        "gc":   v2_swagger_client.GcApi(v2_swagger_client.ApiClient(cfg)),
     }.get(api_type,'Error: Wrong API type')
 
 def _assert_status_code(expect_code, return_code):
@@ -65,7 +70,7 @@ def _assert_status_code(expect_code, return_code):
         raise Exception(r"HTTPS status code s not as we expected. Expected {}, while actual HTTPS status code is {}.".format(expect_code, return_code))
 
 def _assert_status_body(expect_status_body, returned_status_body):
-    if expect_status_body.strip() != returned_status_body.strip():
+    if str(returned_status_body.strip()).lower().find(expect_status_body.lower()) < 0:
         raise Exception(r"HTTPS status body s not as we expected. Expected {}, while actual HTTPS status body is {}.".format(expect_status_body, returned_status_body))
 
 def _random_name(prefix):

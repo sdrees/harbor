@@ -20,11 +20,9 @@ import (
 	"fmt"
 	"time"
 
-	beegoorm "github.com/astaxie/beego/orm"
 	"github.com/goharbor/harbor/src/jobservice/job"
 	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/lib/log"
-	"github.com/goharbor/harbor/src/lib/orm"
 	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/pkg/task"
 	cronlib "github.com/robfig/cron"
@@ -37,14 +35,15 @@ var (
 
 // Schedule describes the detail information about the created schedule
 type Schedule struct {
-	ID           int64     `json:"id"`
-	VendorType   string    `json:"vendor_type"`
-	VendorID     int64     `json:"vendor_id"`
-	CRONType     string    `json:"cron_type"`
-	CRON         string    `json:"cron"`
-	Status       string    `json:"status"` // status of the underlying task(jobservice job)
-	CreationTime time.Time `json:"creation_time"`
-	UpdateTime   time.Time `json:"update_time"`
+	ID           int64                  `json:"id"`
+	VendorType   string                 `json:"vendor_type"`
+	VendorID     int64                  `json:"vendor_id"`
+	CRONType     string                 `json:"cron_type"`
+	CRON         string                 `json:"cron"`
+	ExtraAttrs   map[string]interface{} `json:"extra_attrs"`
+	Status       string                 `json:"status"` // status of the underlying task(jobservice job)
+	CreationTime time.Time              `json:"creation_time"`
+	UpdateTime   time.Time              `json:"update_time"`
 	// we can extend this model to include more information(e.g. how many times the schedule already
 	// runs; when will the schedule runs next time)
 }
@@ -56,10 +55,11 @@ type Scheduler interface {
 	// The callback function needs to be registered first
 	// The "vendorType" specifies the type of vendor (e.g. replication, scan, gc, retention, etc.),
 	// and the "vendorID" specifies the ID of vendor if needed(e.g. policy ID for replication and retention).
-	// The "params" is passed to the callback function as encoded json string, so the callback
+	// The "callbackFuncParams" is passed to the callback function as encoded json string, so the callback
 	// function must decode it before using
+	// The customized attributes can be put into the "extraAttrs"
 	Schedule(ctx context.Context, vendorType string, vendorID int64, cronType string,
-		cron string, callbackFuncName string, params interface{}) (int64, error)
+		cron string, callbackFuncName string, callbackFuncParams interface{}, extraAttrs map[string]interface{}) (int64, error)
 	// UnScheduleByID the schedule specified by ID
 	UnScheduleByID(ctx context.Context, id int64) error
 	// UnScheduleByVendor the schedule specified by vendor
@@ -85,35 +85,8 @@ type scheduler struct {
 	taskMgr task.Manager
 }
 
-// Currently all database operations inside one request handling are covered by
-// one transaction, which means if any one of the operations fails, all of them
-// will be roll back. As the scheduler creates jobservice jobs that cannot be
-// roll back by the transaction, this will cause some unexpected data inconsistence
-// in some cases.
-// The implementation of "Schedule" replaces the ormer with a new one in the context
-// to out of control from the global transaction, and uses a new transaction that only
-// covers the logic inside the function
 func (s *scheduler) Schedule(ctx context.Context, vendorType string, vendorID int64, cronType string,
-	cron string, callbackFuncName string, params interface{}) (int64, error) {
-	var scheduleID int64
-	f := func(ctx context.Context) error {
-		id, err := s.schedule(ctx, vendorType, vendorID, cronType, cron, callbackFuncName, params)
-		if err != nil {
-			return err
-		}
-		scheduleID = id
-		return nil
-	}
-
-	ctx = orm.NewContext(ctx, beegoorm.NewOrm())
-	if err := orm.WithTransaction(f)(ctx); err != nil {
-		return 0, err
-	}
-	return scheduleID, nil
-}
-
-func (s *scheduler) schedule(ctx context.Context, vendorType string, vendorID int64, cronType string,
-	cron string, callbackFuncName string, params interface{}) (int64, error) {
+	cron string, callbackFuncName string, callbackFuncParams interface{}, extraAttrs map[string]interface{}) (int64, error) {
 	if len(vendorType) == 0 {
 		return 0, fmt.Errorf("empty vendor type")
 	}
@@ -135,13 +108,19 @@ func (s *scheduler) schedule(ctx context.Context, vendorType string, vendorID in
 		CreationTime:     now,
 		UpdateTime:       now,
 	}
-	if params != nil {
-		paramsData, err := json.Marshal(params)
-		if err != nil {
-			return 0, err
-		}
-		sched.CallbackFuncParam = string(paramsData)
+
+	paramsData, err := json.Marshal(callbackFuncParams)
+	if err != nil {
+		return 0, err
 	}
+	sched.CallbackFuncParam = string(paramsData)
+
+	extrasData, err := json.Marshal(extraAttrs)
+	if err != nil {
+		return 0, err
+	}
+	sched.ExtraAttrs = string(extrasData)
+
 	// create schedule record
 	// when checkin hook comes, the database record must exist,
 	// so the database record must be created first before submitting job
@@ -272,6 +251,15 @@ func (s *scheduler) convertSchedule(ctx context.Context, schedule *schedule) (*S
 		CreationTime: schedule.CreationTime,
 		UpdateTime:   schedule.UpdateTime,
 	}
+	if len(schedule.ExtraAttrs) > 0 {
+		extras := map[string]interface{}{}
+		if err := json.Unmarshal([]byte(schedule.ExtraAttrs), &extras); err != nil {
+			log.Errorf("failed to unmarshal the extra attributes of schedule %d: %v", schedule.ID, err)
+			return nil, err
+		}
+		schd.ExtraAttrs = extras
+	}
+
 	executions, err := s.execMgr.List(ctx, &q.Query{
 		Keywords: map[string]interface{}{
 			"VendorType": JobNameScheduler,
@@ -288,39 +276,4 @@ func (s *scheduler) convertSchedule(ctx context.Context, schedule *schedule) (*S
 		schd.Status = executions[0].Status
 	}
 	return schd, nil
-}
-
-// HandleLegacyHook handles the legacy web hook for scheduler
-// We rewrite the implementation of scheduler with task manager mechanism in v2.1,
-// this method is used to handle the job status hook for the legacy implementation
-// We can remove the method and the hook endpoint after several releases
-func HandleLegacyHook(ctx context.Context, scheduleID int64, sc *job.StatusChange) error {
-	scheduler := Sched.(*scheduler)
-	executions, err := scheduler.execMgr.List(ctx, &q.Query{
-		Keywords: map[string]interface{}{
-			"VendorType": JobNameScheduler,
-			"VendorID":   scheduleID,
-		},
-	})
-	if err != nil {
-		return err
-	}
-	if len(executions) == 0 {
-		return errors.New(nil).WithCode(errors.NotFoundCode).
-			WithMessage("no execution found for the schedule %d", scheduleID)
-	}
-
-	tasks, err := scheduler.taskMgr.List(ctx, &q.Query{
-		Keywords: map[string]interface{}{
-			"ExecutionID": executions[0].ID,
-		},
-	})
-	if err != nil {
-		return err
-	}
-	if len(tasks) == 0 {
-		return errors.New(nil).WithCode(errors.NotFoundCode).
-			WithMessage("no task found for the execution %d", executions[0].ID)
-	}
-	return task.NewHookHandler().Handle(ctx, tasks[0].ID, sc)
 }
