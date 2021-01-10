@@ -17,6 +17,7 @@ package v2auth
 import (
 	"context"
 	"fmt"
+	"github.com/goharbor/harbor/src/common/rbac/system"
 	"net/http"
 	"net/url"
 	"strings"
@@ -52,8 +53,11 @@ func (rc *reqChecker) check(req *http.Request) (string, error) {
 		if a.target == login && !securityCtx.IsAuthenticated() {
 			return getChallenge(req, al), errors.New("unauthorized")
 		}
-		if a.target == catalog && !securityCtx.IsSysAdmin() {
-			return getChallenge(req, al), fmt.Errorf("unauthorized to list catalog")
+		if a.target == catalog {
+			resource := system.NewNamespace().Resource(rbac.ResourceCatalog)
+			if !securityCtx.Can(req.Context(), rbac.ActionRead, resource) {
+				return getChallenge(req, al), fmt.Errorf("unauthorized to list catalog")
+			}
 		}
 		if a.target == repository && req.Header.Get(authHeader) == "" && req.Method == http.MethodHead { // make sure 401 is returned for CLI HEAD, see #11271
 			return getChallenge(req, al), fmt.Errorf("authorize header needed to send HEAD to repository")
@@ -84,8 +88,7 @@ func (rc *reqChecker) projectID(ctx context.Context, name string) (int64, error)
 func getChallenge(req *http.Request, accessList []access) string {
 	logger := log.G(req.Context())
 	auth := req.Header.Get(authHeader)
-	if len(auth) > 0 ||
-		len(lib.V2CatalogURLRe.FindStringSubmatch(req.URL.Path)) == 1 {
+	if len(auth) > 0 || lib.V2CatalogURLRe.MatchString(req.URL.Path) {
 		// Return basic auth challenge by default, incl. request to '/v2/_catalog'
 		return `Basic realm="harbor"`
 	}

@@ -248,7 +248,7 @@
         "QUOTA_UNLIMIT_TIP": "Für eine unbegrenzte Speicherbeschränkung '-1' eingeben.",
         "TYPE": "Typ",
         "PROXY_CACHE": "Proxy Cache",
-        "PROXY_CACHE_TOOLTIP": "Die Aktivierung erlaubt es dem Projekt als \"pull-through cache\" für einen spezifischen Namespace der referenzierten Registry zu dienen. Harbor kann nur für DockerHub und Harbor Proxy sein.",
+        "PROXY_CACHE_TOOLTIP": "Enable this to allow this project to act as a pull-through cache for a particular target registry instance. Harbor can only act a proxy for DockerHub, Harbor, Aws ECR, Azure ACR, Quay and Google GCR registries.",
         "ENDPOINT": "Endpunkt",
         "PROXY_CACHE_ENDPOINT": "Proxy Cache Endpunkt"
     },
@@ -1022,7 +1022,8 @@
             "COLUMN_DESCRIPTION": "Beschreibung",
             "FOOT_ITEMS": "Elemente",
             "FOOT_OF": "von",
-	    "IN_ALLOW_LIST": "In CVE Allowliste enthalten"
+	        "IN_ALLOW_LIST": "In CVE Allowliste enthalten",
+            "CVSS3": "CVSS3"
         },
         "CHART": {
             "SCANNING_TIME": "Scan abgeschlossen um:",
@@ -1048,7 +1049,10 @@
         "PLACEHOLDER": "Filter Schwachstellen",
         "PACKAGE": "Paket",
         "PACKAGES": "Pakete",
-        "SCAN_NOW": "Scan"
+        "SCAN_NOW": "Scan",
+        "SCAN_BY": "SCAN BY {{scanner}}",
+        "REPORTED_BY": "Reported by {{scanner}}",
+        "NO_SCANNER": "NO SCANNER"
     },
     "PUSH_IMAGE": {
         "TITLE": "Push Befehl",
@@ -1660,6 +1664,7 @@
         "DELETE": "Delete",
         "ARTIFACT_LABEL": "Artifact label",
         "SCAN": "Scan",
-        "SCANNER_PULL": "Scanner Pull"
+        "SCANNER_PULL": "Scanner Pull",
+        "SEARCH_BY_NAME": "Search by name(without prefix)"
     }
 }

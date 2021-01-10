@@ -18,10 +18,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"testing"
+
 	"github.com/goharbor/harbor/src/controller/artifact"
-	"github.com/goharbor/harbor/src/controller/robot"
 	"github.com/goharbor/harbor/src/jobservice/job"
-	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/pkg/scan"
 	dscan "github.com/goharbor/harbor/src/pkg/scan/dao/scan"
 	"github.com/goharbor/harbor/src/pkg/task"
@@ -32,48 +32,39 @@ import (
 	reporttesting "github.com/goharbor/harbor/src/testing/pkg/scan/report"
 	tasktesting "github.com/goharbor/harbor/src/testing/pkg/task"
 	"github.com/stretchr/testify/suite"
-	"testing"
 )
 
 type CallbackTestSuite struct {
 	suite.Suite
 
-	artifactCtl         *artifacttesting.Controller
-	originalArtifactCtl artifact.Controller
+	artifactCtl *artifacttesting.Controller
 
 	execMgr *tasktesting.ExecutionManager
 
-	robotCtl         *robottesting.Controller
-	originalRobotCtl robot.Controller
+	robotCtl *robottesting.Controller
 
 	reportMgr *reporttesting.Manager
 
-	scanCtl         Controller
-	originalScanCtl Controller
+	scanCtl Controller
 
 	taskMgr         *tasktesting.Manager
-	originalTaskMgr task.Manager
 	reportConverter *postprocessorstesting.ScanReportV1ToV2Converter
 }
 
 func (suite *CallbackTestSuite) SetupSuite() {
-	suite.originalArtifactCtl = artifact.Ctl
 	suite.artifactCtl = &artifacttesting.Controller{}
-	artifact.Ctl = suite.artifactCtl
+	artifactCtl = suite.artifactCtl
 
 	suite.execMgr = &tasktesting.ExecutionManager{}
 
-	suite.originalRobotCtl = robot.Ctl
 	suite.robotCtl = &robottesting.Controller{}
-	robot.Ctl = suite.robotCtl
+	robotCtl = suite.robotCtl
 
 	suite.reportMgr = &reporttesting.Manager{}
 
-	suite.originalTaskMgr = task.Mgr
 	suite.taskMgr = &tasktesting.Manager{}
-	task.Mgr = suite.taskMgr
+	taskMgr = suite.taskMgr
 
-	suite.originalScanCtl = DefaultController
 	suite.reportConverter = &postprocessorstesting.ScanReportV1ToV2Converter{}
 
 	suite.scanCtl = &basicController{
@@ -83,15 +74,7 @@ func (suite *CallbackTestSuite) SetupSuite() {
 		taskMgr:         suite.taskMgr,
 		reportConverter: suite.reportConverter,
 	}
-	DefaultController = suite.scanCtl
-}
-
-func (suite *CallbackTestSuite) TearDownSuite() {
-	DefaultController = suite.originalScanCtl
-
-	artifact.Ctl = suite.originalArtifactCtl
-	robot.Ctl = suite.originalRobotCtl
-	task.Mgr = suite.originalTaskMgr
+	scanCtl = suite.scanCtl
 }
 
 func (suite *CallbackTestSuite) TestScanTaskStatusChange() {
@@ -181,7 +164,7 @@ func (suite *CallbackTestSuite) TestScanAllCallback() {
 	{
 		// create execution failed
 		suite.execMgr.On(
-			"Create", context.TODO(), "IMAGE_SCAN_ALL", int64(0), "SCHEDULE", map[string]interface{}{},
+			"Create", context.TODO(), "IMAGE_SCAN_ALL", int64(0), "SCHEDULE",
 		).Return(int64(0), fmt.Errorf("failed")).Once()
 
 		suite.Error(scanAllCallback(context.TODO(), ""))
@@ -191,7 +174,7 @@ func (suite *CallbackTestSuite) TestScanAllCallback() {
 		executionID := int64(1)
 
 		suite.execMgr.On(
-			"Create", context.TODO(), "IMAGE_SCAN_ALL", int64(0), "SCHEDULE", map[string]interface{}{},
+			"Create", context.TODO(), "IMAGE_SCAN_ALL", int64(0), "SCHEDULE",
 		).Return(executionID, nil).Once()
 
 		suite.execMgr.On(
@@ -200,9 +183,9 @@ func (suite *CallbackTestSuite) TestScanAllCallback() {
 
 		mock.OnAnything(suite.artifactCtl, "List").Return([]*artifact.Artifact{}, nil).Once()
 
-		suite.taskMgr.On("Count", context.TODO(), q.New(q.KeyWords{"execution_id": executionID})).Return(int64(0), nil).Once()
+		mock.OnAnything(suite.execMgr, "UpdateExtraAttrs").Return(nil).Once()
 
-		suite.execMgr.On("MarkDone", context.TODO(), executionID, "no artifact found").Return(nil).Once()
+		suite.execMgr.On("MarkDone", context.TODO(), executionID, mock.Anything).Return(nil).Once()
 
 		suite.NoError(scanAllCallback(context.TODO(), ""))
 	}

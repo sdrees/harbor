@@ -247,7 +247,7 @@
         "QUOTA_UNLIMIT_TIP": "如果你想要对存储不设置上限，请输入-1。",
         "TYPE": "类型",
         "PROXY_CACHE": "镜像代理",
-        "PROXY_CACHE_TOOLTIP": "开启此项，以使得该项目成为目标仓库的镜像代理.仅支持 DockerHub, Harbor, Aws ECR, Azure ACR 和 Google GCR 类型的仓库",
+        "PROXY_CACHE_TOOLTIP": "开启此项，以使得该项目成为目标仓库的镜像代理.仅支持 DockerHub, Harbor, Aws ECR, Azure ACR, Quay 和 Google GCR 类型的仓库",
         "ENDPOINT": "地址",
         "PROXY_CACHE_ENDPOINT": "镜像代理地址"
     },
@@ -1022,7 +1022,8 @@
             "COLUMN_DESCRIPTION": "简介",
             "FOOT_ITEMS": "项目",
             "FOOT_OF": "总共",
-            "IN_ALLOW_LIST": "已入特赦名单"
+            "IN_ALLOW_LIST": "已入特赦名单",
+            "CVSS3": "CVSS3"
         },
         "CHART": {
             "SCANNING_TIME": "扫描完成时间:",
@@ -1048,7 +1049,10 @@
         "PLACEHOLDER": "过滤漏洞",
         "PACKAGE": "组件",
         "PACKAGES": "组件",
-        "SCAN_NOW": "扫描"
+        "SCAN_NOW": "扫描",
+        "SCAN_BY": "使用 {{scanner}} 进行扫描",
+        "REPORTED_BY": "结果由 {{scanner}} 提供",
+        "NO_SCANNER": "无扫描器"
     },
     "PUSH_IMAGE": {
         "TITLE": "推送命令",
@@ -1657,6 +1661,7 @@
         "DELETE": "删除",
         "ARTIFACT_LABEL": "Artifact 标签",
         "SCAN": "扫描",
-        "SCANNER_PULL": "扫描器拉取"
+        "SCANNER_PULL": "扫描器拉取",
+        "SEARCH_BY_NAME": "按名称(不含前缀)搜索"
     }
 }

@@ -18,6 +18,7 @@ package handler
 
 import (
 	"context"
+	"github.com/goharbor/harbor/src/common/rbac/system"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -34,6 +35,10 @@ import (
 	"github.com/goharbor/harbor/src/common/utils"
 	"github.com/goharbor/harbor/src/controller/project"
 	"github.com/goharbor/harbor/src/lib/log"
+)
+
+var (
+	baseProjectCtl = project.Ctl
 )
 
 // BaseAPI base API handler
@@ -68,7 +73,7 @@ func (b *BaseAPI) HasProjectPermission(ctx context.Context, projectIDOrName inte
 	}
 
 	if projectName != "" {
-		p, err := project.Ctl.GetByName(ctx, projectName)
+		p, err := baseProjectCtl.GetByName(ctx, projectName)
 		if err != nil {
 			log.Errorf("failed to get project %s: %v", projectName, err)
 			return false
@@ -101,8 +106,8 @@ func (b *BaseAPI) RequireProjectAccess(ctx context.Context, projectIDOrName inte
 	return errors.ForbiddenError(nil)
 }
 
-// RequireSysAdmin checks the system admin permission according to the security context
-func (b *BaseAPI) RequireSysAdmin(ctx context.Context) error {
+// RequireSystemAccess checks the system admin permission according to the security context
+func (b *BaseAPI) RequireSystemAccess(ctx context.Context, action rbac.Action, subresource ...rbac.Resource) error {
 	secCtx, ok := security.FromContext(ctx)
 	if !ok {
 		return errors.UnauthorizedError(errors.New("security context not found"))
@@ -110,7 +115,8 @@ func (b *BaseAPI) RequireSysAdmin(ctx context.Context) error {
 	if !secCtx.IsAuthenticated() {
 		return errors.UnauthorizedError(nil)
 	}
-	if !secCtx.IsSysAdmin() {
+	resource := system.NewNamespace().Resource(subresource...)
+	if !secCtx.Can(ctx, action, resource) {
 		return errors.ForbiddenError(nil).WithMessage(secCtx.GetUsername())
 	}
 	return nil

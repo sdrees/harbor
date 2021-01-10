@@ -13,8 +13,7 @@ def pull_harbor_image(registry, username, password, image, tag, expected_login_e
     if expected_login_error_message != None:
         return
     time.sleep(2)
-    ret = _docker_api.docker_image_pull(r'{}/{}'.format(registry, image), tag = tag, expected_error_message = expected_error_message)
-    print("Docker pull image return message: {}".format(ret))
+    _docker_api.docker_image_pull(r'{}/{}'.format(registry, image), tag = tag, expected_error_message = expected_error_message)
 
 def push_image_to_project(project_name, registry, username, password, image, tag, expected_login_error_message = None, expected_error_message = None, profix_for_image = None, new_image=None):
     print("Start to push image {}/{}/{}:{}".format(registry, project_name, image, tag) )
@@ -41,6 +40,10 @@ def push_image_to_project(project_name, registry, username, password, image, tag
 def push_self_build_image_to_project(project_name, registry, username, password, image, tag, size=2, expected_login_error_message = None, expected_error_message = None):
     _docker_api = DockerAPI()
     _docker_api.docker_login(registry, username, password, expected_error_message = expected_login_error_message)
+
+    time.sleep(2)
+    if expected_login_error_message != None:
+        return
 
     push_special_image_to_project(project_name, registry, username, password, image, tags=[tag], size=size, expected_login_error_message = expected_login_error_message, expected_error_message = expected_error_message)
     return r'{}/{}'.format(project_name, image), tag
