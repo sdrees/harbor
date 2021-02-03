@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	rbac_project "github.com/goharbor/harbor/src/common/rbac/project"
 	"regexp"
 	"strings"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/controller/project"
 	"github.com/goharbor/harbor/src/controller/robot"
-	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/lib"
 	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/lib/log"
@@ -223,20 +223,10 @@ func (rAPI *robotV1API) UpdateRobotV1(ctx context.Context, params operation.Upda
 	}
 	robot := r[0]
 
-	// for v1 API, only update the disable and description.
-	if robot.Disabled != params.Robot.Disable {
-		robot.Robot.Disabled = params.Robot.Disable
-		robot.Name = strings.TrimPrefix(params.Robot.Name, config.RobotPrefix())
-		if err := rAPI.robotMgr.Update(ctx, &robot.Robot); err != nil {
-			return rAPI.SendError(ctx, err)
-		}
-	}
-	if robot.Description != params.Robot.Description {
-		robot.Robot.Description = params.Robot.Description
-		robot.Name = strings.TrimPrefix(params.Robot.Name, config.RobotPrefix())
-		if err := rAPI.robotMgr.Update(ctx, &robot.Robot); err != nil {
-			return rAPI.SendError(ctx, err)
-		}
+	// for v1 API, only update the disable.
+	robot.Disabled = params.Robot.Disable
+	if err := rAPI.robotCtl.Update(ctx, robot, nil); err != nil {
+		return rAPI.SendError(ctx, err)
 	}
 
 	return operation.NewUpdateRobotV1OK()
@@ -256,7 +246,7 @@ func (rAPI *robotV1API) validate(ctx context.Context, params operation.CreateRob
 		return err
 	}
 
-	policies := rbac.GetPoliciesOfProject(pro.ProjectID)
+	policies := rbac_project.GetPoliciesOfProject(pro.ProjectID)
 
 	mp := map[string]bool{}
 	for _, policy := range policies {

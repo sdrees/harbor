@@ -3,7 +3,7 @@ package robot
 import (
 	"context"
 	"fmt"
-	rbac_common "github.com/goharbor/harbor/src/common/rbac"
+	rbac_project "github.com/goharbor/harbor/src/common/rbac/project"
 	"github.com/goharbor/harbor/src/common/utils"
 	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/lib/errors"
@@ -136,7 +136,7 @@ func (d *controller) Update(ctx context.Context, r *Robot, option *Option) error
 	if r == nil {
 		return errors.New("cannot update a nil robot").WithCode(errors.BadRequestCode)
 	}
-	if err := d.robotMgr.Update(ctx, &r.Robot, "secret", "description", "disabled", "duration"); err != nil {
+	if err := d.robotMgr.Update(ctx, &r.Robot, "secret", "description", "disabled", "duration", "expiresat"); err != nil {
 		return err
 	}
 	// update the permission
@@ -211,9 +211,15 @@ func (d *controller) populate(ctx context.Context, r *model.Robot, option *Optio
 	robot := &Robot{
 		Robot: *r,
 	}
-	robot.Name = fmt.Sprintf("%s%s", config.RobotPrefix(), r.Name)
 	robot.setLevel()
 	robot.setEditable()
+	// for the v2 robots, add prefix to the robot name
+	// for the v1 legacy robots, keep the robot name
+	if robot.Editable {
+		robot.Name = fmt.Sprintf("%s%s", config.RobotPrefix(), r.Name)
+	} else {
+		robot.Name = r.Name
+	}
 	if option != nil && option.WithPermission {
 		if err := d.populatePermissions(ctx, robot); err != nil {
 			return nil, err
@@ -312,7 +318,7 @@ func (d *controller) convertScope(ctx context.Context, scope string) (kind, name
 		namespace = "*"
 	} else {
 		kind = LEVELPROJECT
-		ns, ok := rbac_common.ProjectNamespaceParse(types.Resource(scope))
+		ns, ok := rbac_project.NamespaceParse(types.Resource(scope))
 		if !ok {
 			log.Debugf("got no namespace from the resource %s", scope)
 			return "", "", errors.Errorf("got no namespace from the resource %s", scope)

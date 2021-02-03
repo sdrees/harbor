@@ -16,7 +16,7 @@ import { Access } from "../../../../ng-swagger-gen/models/access";
 import {
   ACTION_RESOURCE_I18N_MAP, ExpirationType,
   FrontAccess, INITIAL_ACCESSES,
-  NAMESPACE_ALL_PROJECTS,
+  NAMESPACE_ALL_PROJECTS, onlyHasPushPermission,
   PermissionsKinds,
 } from "../system-robot-util";
 import { clone } from "../../../lib/utils/utils";
@@ -28,7 +28,7 @@ import { operateChanges, OperateInfo, OperationState } from "../../../lib/compon
 import { OperationService } from "../../../lib/components/operation/operation.service";
 import { errorHandler } from "../../../lib/utils/shared/shared.utils";
 
-const MINUETS_ONE_DAY: number = 60 * 24;
+const MINI_SECONDS_ONE_DAY: number = 60 * 24 * 60 * 1000;
 
 @Component({
   selector: 'new-robot',
@@ -344,7 +344,6 @@ export class NewRobotComponent implements OnInit, OnDestroy {
     return !flag1;
   }
   save() {
-    this.saveBtnState = ClrLoadingState.LOADING;
     const robot: Robot = clone(this.systemRobot);
     robot.disable = false;
     robot.level = PermissionsKinds.SYSTEM;
@@ -383,6 +382,16 @@ export class NewRobotComponent implements OnInit, OnDestroy {
         });
       });
     }
+    // Push permission must work with pull permission
+    if (robot.permissions && robot.permissions.length) {
+      for (let i = 0; i < robot.permissions.length; i++) {
+        if (onlyHasPushPermission(robot.permissions[i].access)) {
+          this.inlineAlertComponent.showInlineError('SYSTEM_ROBOT.PUSH_PERMISSION_TOOLTIP');
+          return;
+        }
+      }
+    }
+    this.saveBtnState = ClrLoadingState.LOADING;
     if (this.isEditMode) {
       robot.disable = this.systemRobot.disable;
       const opeMessage = new OperateInfo();
@@ -435,5 +444,15 @@ export class NewRobotComponent implements OnInit, OnDestroy {
       }
     });
     return count;
+  }
+  calculateExpiresAt(): Date {
+    if (this.systemRobot && this.systemRobot.creation_time && this.systemRobot.duration > 0) {
+      return new Date(new Date(this.systemRobot.creation_time).getTime()
+      + this.systemRobot.duration * MINI_SECONDS_ONE_DAY);
+    }
+    return null;
+  }
+  shouldShowWarning(): boolean {
+    return new Date() >= this.calculateExpiresAt();
   }
 }

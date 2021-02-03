@@ -9,7 +9,7 @@ import { MessageHandlerService } from "../../../shared/message-handler/message-h
 import {
   ACTION_RESOURCE_I18N_MAP,
   ExpirationType,
-  FrontAccess, INITIAL_ACCESSES, PermissionsKinds
+  FrontAccess, INITIAL_ACCESSES, onlyHasPushPermission, PermissionsKinds
 } from "../../../system-robot-accounts/system-robot-util";
 import { Robot } from "../../../../../ng-swagger-gen/models/robot";
 import { InlineAlertComponent } from "../../../shared/inline-alert/inline-alert.component";
@@ -23,6 +23,7 @@ import { operateChanges, OperateInfo, OperationState } from "../../../../lib/com
 import { errorHandler } from "../../../../lib/utils/shared/shared.utils";
 import { Access } from "../../../../../ng-swagger-gen/models/access";
 
+const MINI_SECONDS_ONE_DAY: number = 60 * 24 * 60 * 1000;
 @Component({
   selector: "add-robot",
   templateUrl: "./add-robot.component.html",
@@ -80,7 +81,8 @@ export class AddRobotComponent implements OnInit, OnDestroy {
                 this.isNameExisting = false;
                 this.checkNameOnGoing = true;
                 return  this.robotService.ListRobot({
-                  q: encodeURIComponent(`Level=${PermissionsKinds.PROJECT},ProjectID=${this.projectId},name=${name}`)
+                  q: encodeURIComponent(
+                      `Level=${PermissionsKinds.PROJECT},ProjectID=${this.projectId},name=${this.projectName}+${name}`)
                 }).pipe(finalize(() => this.checkNameOnGoing = false));
               }))
           .subscribe(res => {
@@ -204,7 +206,6 @@ export class AddRobotComponent implements OnInit, OnDestroy {
     return !flag;
   }
   save() {
-    this.saveBtnState = ClrLoadingState.LOADING;
     const robot: Robot = clone(this.systemRobot);
     robot.disable = false;
     robot.level = PermissionsKinds.PROJECT;
@@ -223,6 +224,12 @@ export class AddRobotComponent implements OnInit, OnDestroy {
       kind: PermissionsKinds.PROJECT,
       access: access
     }];
+    // Push permission must work with pull permission
+    if (onlyHasPushPermission(access)) {
+      this.inlineAlertComponent.showInlineError('SYSTEM_ROBOT.PUSH_PERMISSION_TOOLTIP');
+      return;
+    }
+    this.saveBtnState = ClrLoadingState.LOADING;
     if (this.isEditMode) {
       robot.disable = this.systemRobot.disable;
       const opeMessage = new OperateInfo();
@@ -275,5 +282,15 @@ export class AddRobotComponent implements OnInit, OnDestroy {
       }
     });
     return count;
+  }
+  calculateExpiresAt(): Date {
+    if (this.systemRobot && this.systemRobot.creation_time && this.systemRobot.duration > 0) {
+      return new Date(new Date(this.systemRobot.creation_time).getTime()
+          + this.systemRobot.duration * MINI_SECONDS_ONE_DAY);
+    }
+    return null;
+  }
+  shouldShowWarning(): boolean {
+    return new Date() >= this.calculateExpiresAt();
   }
 }

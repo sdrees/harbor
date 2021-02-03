@@ -96,7 +96,7 @@ export const INITIAL_ACCESSES: FrontAccess[] = [
 ];
 
 export const ACTION_RESOURCE_I18N_MAP = {
-    'push': 'ROBOT_ACCOUNT.PUSH',
+    'push': 'SYSTEM_ROBOT.PUSH_AND_PULL', // push permission contains pull permission
     'pull': 'ROBOT_ACCOUNT.PULL',
     'read': 'SYSTEM_ROBOT.READ',
     'create': 'SYSTEM_ROBOT.CREATE',
@@ -117,3 +117,21 @@ export enum ExpirationType {
     NEVER = 'never'
 }
 
+export function onlyHasPushPermission(access: Access[]): boolean {
+    if (access && access.length) {
+        let hasPushPermission: boolean = false;
+        let hasPullPermission: boolean = false;
+        access.forEach( item => {
+            if (item.action === Action.PUSH && item.resource === Resource.ARTIFACT) {
+                hasPushPermission = true;
+            }
+            if (item.action === Action.PULL && item.resource === Resource.ARTIFACT) {
+                hasPullPermission = true;
+            }
+        });
+        if (hasPushPermission && !hasPullPermission) {
+            return true;
+        }
+    }
+    return false;
+}

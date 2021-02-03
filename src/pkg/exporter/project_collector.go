@@ -41,28 +41,28 @@ var (
 		valueType: prometheus.GaugeValue,
 	}
 	projectUsage = typedDesc{
-		desc:      newDescWithLables("", "project_usage_byte", "The used resource of a project", "project_id"),
+		desc:      newDescWithLables("", "project_quota_usage_byte", "The used resource of a project", "project_name"),
 		valueType: prometheus.GaugeValue,
 	}
 	projectQuote = typedDesc{
-		desc:      newDescWithLables("", "project_quota_byte", "The quota of a project", "project_id"),
+		desc:      newDescWithLables("", "project_quota_byte", "The quota of a project", "project_name"),
 		valueType: prometheus.GaugeValue,
 	}
 	projectRepoTotal = typedDesc{
-		desc:      newDescWithLables("", "project_repo_total", "Total project repos number", "project_id", "public"),
+		desc:      newDescWithLables("", "project_repo_total", "Total project repos number", "project_name", "public"),
 		valueType: prometheus.GaugeValue,
 	}
 
 	projectMemberTotal = typedDesc{
-		desc:      newDescWithLables("", "project_member_total", "Total members number of a project", "project_id"),
+		desc:      newDescWithLables("", "project_member_total", "Total members number of a project", "project_name"),
 		valueType: prometheus.GaugeValue,
 	}
 	artifactPullTotal = typedDesc{
-		desc:      newDescWithLables("", "image_pulled", "The pull number of an image", "project_id"),
+		desc:      newDescWithLables("", "artifact_pulled", "The pull number of an artifact", "project_name"),
 		valueType: prometheus.GaugeValue,
 	}
 	projectArtifactTotal = typedDesc{
-		desc:      newDescWithLables("", "project_artifact_total", "Total project images number", "project_id", "public", "image_type"),
+		desc:      newDescWithLables("", "project_artifact_total", "Total project artifacts number", "project_name", "public", "artifact_type"),
 		valueType: prometheus.GaugeValue,
 	}
 )
@@ -100,7 +100,9 @@ func (hc *ProjectCollector) Collect(c chan<- prometheus.Metric) {
 		c <- projectMemberTotal.MustNewConstMetric(p.MemberTotal, p.Name)
 		c <- projectRepoTotal.MustNewConstMetric(p.RepoTotal, p.Name, getPublicValue(p.Public))
 		c <- artifactPullTotal.MustNewConstMetric(p.PullTotal, p.Name)
-		c <- projectArtifactTotal.MustNewConstMetric(p.Artifact.ArtifactTotal, p.Name, getPublicValue(p.Public), p.Artifact.ArtifactType)
+		for _, a := range p.Artifact {
+			c <- projectArtifactTotal.MustNewConstMetric(a.ArtifactTotal, p.Name, getPublicValue(p.Public), a.ArtifactType)
+		}
 	}
 }
 
@@ -123,7 +125,7 @@ type projectInfo struct {
 	MemberTotal float64 `orm:"column(member_total)"`
 	RepoTotal   float64 `orm:"column(repo_total)"`
 	PullTotal   float64 `orm:"column(pull_total)"`
-	Artifact    artifactInfo
+	Artifact    map[string]artifactInfo
 }
 type artifactInfo struct {
 	ProjectID     int64   `orm:"column(project_id)"`
@@ -179,6 +181,7 @@ func updateProjectBasicInfo(projectMap map[int64]*projectInfo) {
 	_, err := dao.GetOrmer().Raw(projectBasicSQL).QueryRows(&pList)
 	checkErr(err, "get project from DB failure")
 	for _, p := range pList {
+		p.Artifact = make(map[string]artifactInfo)
 		projectMap[p.ProjectID] = p
 	}
 }
@@ -218,7 +221,7 @@ func updateProjectArtifactInfo(projectMap map[int64]*projectInfo) {
 	checkErr(err, "get data from DB failure")
 	for _, a := range aList {
 		if _, ok := projectMap[a.ProjectID]; ok {
-			projectMap[a.ProjectID].Artifact = a
+			projectMap[a.ProjectID].Artifact[a.ArtifactType] = a
 		} else {
 			log.Errorf("%v, ID %d", errProjectNotFound, a.ProjectID)
 		}

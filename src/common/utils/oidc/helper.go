@@ -338,11 +338,11 @@ func userInfoFromClaims(c claimsProvider, setting models.OIDCSetting) (*UserInfo
 			return nil, err
 		}
 
-		username, ok := allClaims[setting.UserClaim].(string)
-		if !ok {
-			return nil, fmt.Errorf("OIDC. Failed to recover Username from claim. Claim '%s' is invalid or not a string", setting.UserClaim)
+		if username, ok := allClaims[setting.UserClaim].(string); ok {
+			res.Username = username
+		} else {
+			log.Warningf("OIDC. Failed to recover Username from claim. Claim '%s' is invalid or not a string", setting.UserClaim)
 		}
-		res.Username = username
 	}
 	res.Groups, res.hasGroupClaim = groupsFromClaims(c, setting.GroupsClaim)
 	if len(setting.AdminGroup) > 0 {

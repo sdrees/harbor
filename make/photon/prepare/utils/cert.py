@@ -56,6 +56,14 @@ def create_ext_file(cn, ext_filename):
     with open(ext_filename, 'w') as f:
         f.write("subjectAltName = DNS.1:{}".format(cn))
 
+def san_existed(cert_path):
+    try:
+        return "Subject Alternative Name:" in str(subprocess.check_output(
+            ["/usr/bin/openssl", "x509", "-in", cert_path, "-text"]))
+    except subprocess.CalledProcessError:
+        pass
+    return False
+
 @stat_decorator
 def create_cert(subj, ca_key, ca_cert, key_path="./k.key", cert_path="./cert.crt", extfile='extfile.cnf'):
     cert_dir = os.path.dirname(cert_path)
