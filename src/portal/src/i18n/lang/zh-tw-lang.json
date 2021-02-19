@@ -201,7 +201,9 @@
     "OF": "共計",
     "ITEMS": "條記錄",
     "RESET_OK": "成功修改用戶密碼",
-    "EXISTING_PASSWORD": "新密碼不能與舊密碼一致"
+    "EXISTING_PASSWORD": "新密碼不能與舊密碼一致",
+    "UNKNOWN": "Unknown",
+    "UNKNOWN_TIP": "Please verify whether the user has admin status through the Identity Provider System if the value is \"Unknown\""
   },
   "PROJECT": {
     "PROJECTS": "項目",
@@ -688,7 +690,8 @@
     "TAGS_NO_DELETE": "在只讀模式下刪除是被禁止的",
     "FILTER_FOR_REPOSITORIES": "過濾鏡像倉庫",
     "TAG":"標籤",
-    "ARTIFACT":"Aarifact",
+    "ARTIFACT": "Aarifact",
+    "ARTIFACTS": "Artifacts",
     "工件":"工件",
     "SIZE": "大小",
     "VULNERABILITY": "漏洞",

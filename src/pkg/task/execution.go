@@ -31,9 +31,8 @@ import (
 
 var (
 	// ExecMgr is a global execution manager instance
-	ExecMgr                            = NewExecutionManager()
-	executionSweeperCount              = map[string]uint8{}
-	defaultExecutionSweeperCount uint8 = 50
+	ExecMgr               = NewExecutionManager()
+	executionSweeperCount = map[string]uint8{}
 )
 
 // ExecutionManager manages executions.
@@ -139,8 +138,10 @@ func (e *executionManager) Create(ctx context.Context, vendorType string, vendor
 func (e *executionManager) sweep(ctx context.Context, vendorType string, vendorID int64) error {
 	count := executionSweeperCount[vendorType]
 	if count == 0 {
-		count = defaultExecutionSweeperCount
+		log.Debugf("the execution sweeper count doesn't set for %s, skip sweep", vendorType)
+		return nil
 	}
+
 	for {
 		// the function "List" of the execution manager returns the execution records
 		// ordered by start time. After the sorting is supported in query, we should
@@ -167,8 +168,11 @@ func (e *executionManager) sweep(ctx context.Context, vendorType string, vendorI
 				continue
 			}
 			if err = e.Delete(ctx, execution.ID); err != nil {
+				// the execution may be deleted by the other sweep operation, ignore the not found error
+				if errors.IsNotFoundErr(err) {
+					continue
+				}
 				log.Errorf("failed to delete the execution %d: %v", execution.ID, err)
-				continue
 			}
 		}
 	}
@@ -314,6 +318,11 @@ func (e *executionManager) Delete(ctx context.Context, id int64) error {
 				WithMessage("the execution %d has tasks that aren't in final status, stop the tasks first", id)
 		}
 		if err = e.taskDAO.Delete(ctx, task.ID); err != nil {
+			// the tasks may be deleted by the other execution deletion operation in the same time(e.g. execution sweeper),
+			// ignore the not found error for the tasks
+			if errors.IsNotFoundErr(err) {
+				continue
+			}
 			return err
 		}
 	}
