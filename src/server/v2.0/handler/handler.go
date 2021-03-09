@@ -34,6 +34,7 @@ func New() http.Handler {
 		ArtifactAPI:    newArtifactAPI(),
 		RepositoryAPI:  newRepositoryAPI(),
 		AuditlogAPI:    newAuditLogAPI(),
+		ScannerAPI:     newScannerAPI(),
 		ScanAPI:        newScanAPI(),
 		ScanAllAPI:     newScanAllAPI(),
 		ProjectAPI:     newProjectAPI(),
@@ -47,6 +48,8 @@ func New() http.Handler {
 		GCAPI:          newGCAPI(),
 		QuotaAPI:       newQuotaAPI(),
 		RetentionAPI:   newRetentionAPI(),
+		ImmutableAPI:   newImmutableAPI(),
+		OidcAPI:        newOIDCAPI(),
 	})
 	if err != nil {
 		log.Fatal(err)

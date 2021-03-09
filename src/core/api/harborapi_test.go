@@ -122,7 +122,6 @@ func init() {
 	beego.Router("/api/labels", &LabelAPI{}, "post:Post;get:List")
 	beego.Router("/api/labels/:id([0-9]+", &LabelAPI{}, "get:Get;put:Put;delete:Delete")
 	beego.Router("/api/system/CVEAllowlist", &SysCVEAllowlistAPI{}, "get:Get;put:Put")
-	beego.Router("/api/system/oidc/ping", &OIDCAPI{}, "post:Ping")
 
 	beego.Router("/api/replication/adapters", &ReplicationAdapterAPI{}, "get:List")
 
@@ -134,8 +133,6 @@ func init() {
 	beego.Router("/api/projects/:pid([0-9]+)/webhook/policies/test", &NotificationPolicyAPI{}, "post:Test")
 	beego.Router("/api/projects/:pid([0-9]+)/webhook/lasttrigger", &NotificationPolicyAPI{}, "get:ListGroupByEventType")
 	beego.Router("/api/projects/:pid([0-9]+)/webhook/jobs/", &NotificationJobAPI{}, "get:List")
-	beego.Router("/api/projects/:pid([0-9]+)/immutabletagrules", &ImmutableTagRuleAPI{}, "get:List;post:Post")
-	beego.Router("/api/projects/:pid([0-9]+)/immutabletagrules/:id([0-9]+)", &ImmutableTagRuleAPI{})
 	// Charts are controlled under projects
 	chartRepositoryAPIType := &ChartRepositoryAPI{}
 	beego.Router("/api/chartrepo/health", chartRepositoryAPIType, "get:GetHealthStatus")
@@ -159,18 +156,6 @@ func init() {
 
 	beego.Router("/api/internal/switchquota", &InternalAPI{}, "put:SwitchQuota")
 	beego.Router("/api/internal/syncquota", &InternalAPI{}, "post:SyncQuota")
-
-	// Add routes for plugin scanner management
-	scannerAPI := &ScannerAPI{}
-	beego.Router("/api/scanners", scannerAPI, "post:Create;get:List")
-	beego.Router("/api/scanners/:uuid", scannerAPI, "get:Get;delete:Delete;put:Update;patch:SetAsDefault")
-	beego.Router("/api/scanners/:uuid/metadata", scannerAPI, "get:Metadata")
-	beego.Router("/api/scanners/ping", scannerAPI, "post:Ping")
-
-	// Add routes for project level scanner
-	proScannerAPI := &ProjectScannerAPI{}
-	beego.Router("/api/projects/:pid([0-9]+)/scanner", proScannerAPI, "get:GetProjectScanner;put:SetProjectScanner")
-	beego.Router("/api/projects/:pid([0-9]+)/scanner/candidates", proScannerAPI, "get:GetProScannerCandidates")
 
 	// Init user Info
 	admin = &usrInfo{adminName, adminPwd}
