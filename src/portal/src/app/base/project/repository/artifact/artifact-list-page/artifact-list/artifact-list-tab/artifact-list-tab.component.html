@@ -107,7 +107,7 @@
                             {{'REPOSITORY.COPY_DIGEST_ID' | translate}}</div>
                         <clr-dropdown *ngIf="!withAdmiral">
                             <button class="action-dropdown-item" clrDropdownTrigger
-                                [disabled]="!(selectedRow.length==1)||!hasAddLabelImagePermission ||depth"
+                                [disabled]="!canAddLabel()||!hasAddLabelImagePermission ||depth || inprogress"
                                 (click)="addLabels()">
                                 {{'REPOSITORY.ADD_LABELS' | translate}}
                             </button>
@@ -121,7 +121,7 @@
                                     <div [hidden]='imageStickLabels.length' class="no-labels">
                                         {{'LABEL.NO_LABELS' | translate }}</div>
                                     <div [hidden]='!imageStickLabels.length' class="has-label">
-                                        <button type="button" class="dropdown-item"
+                                        <button type="button" class="dropdown-item" clrDropdownItem
                                             *ngFor='let label of imageStickLabels' [hidden]='!label.show'
                                             (click)="stickLabel(label)">
                                             <clr-icon shape="check" class='pull-left' [hidden]='!label.iconsShow'>
@@ -147,12 +147,12 @@
 
             </clr-dg-action-bar>
 
-            <clr-dg-column class="flex-max-width">{{'REPOSITORY.ARTIFACTS_COUNT' | translate}}
+            <clr-dg-column class="flex-max-width" [clrDgSortBy]="'digest'">{{'REPOSITORY.ARTIFACTS_COUNT' | translate}}
             </clr-dg-column>
             <clr-dg-column>{{'REPOSITORY.PULL_COMMAND' | translate}}</clr-dg-column>
             <clr-dg-column *ngIf="depth">{{'REPOSITORY.PLATFORM' | translate}}</clr-dg-column>
             <clr-dg-column class="w-rem-4">{{'REPOSITORY.TAGS' | translate}}</clr-dg-column>
-            <clr-dg-column >{{'REPOSITORY.SIZE' | translate}}</clr-dg-column>
+            <clr-dg-column [clrDgSortBy]="'size'">{{'REPOSITORY.SIZE' | translate}}</clr-dg-column>
             <clr-dg-column>{{'REPOSITORY.VULNERABILITY' | translate}}</clr-dg-column>
             <clr-dg-column>{{'ARTIFACT.ANNOTATION' | translate}}</clr-dg-column>
             <clr-dg-column *ngIf="!withAdmiral">{{'REPOSITORY.LABELS' | translate}}</clr-dg-column>

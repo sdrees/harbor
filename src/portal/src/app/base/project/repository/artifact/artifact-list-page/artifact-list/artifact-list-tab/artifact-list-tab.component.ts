@@ -26,15 +26,20 @@ import { ClrLoadingState, ClrDatagridStateInterface, ClrDatagridComparatorInterf
 
 import { ActivatedRoute, Router } from "@angular/router";
 import {
-  Comparator, Label, LabelService, ScannerVo, ScanningResultService,
-  UserPermissionService, USERSTATICPERMISSION, VulnerabilitySummary
+  Comparator, Label, LabelService, ScanningResultService,
+  UserPermissionService, USERSTATICPERMISSION,
 } from "../../../../../../../shared/services";
 import {
   calculatePage,
   clone,
   CustomComparator,
   DEFAULT_PAGE_SIZE,
-  formatSize, VULNERABILITY_SCAN_STATUS, dbEncodeURIComponent, doSorting, DEFAULT_SUPPORTED_MIME_TYPES
+  formatSize,
+  VULNERABILITY_SCAN_STATUS,
+  dbEncodeURIComponent,
+  doSorting,
+  DEFAULT_SUPPORTED_MIME_TYPES,
+  getSortingString
 } from "../../../../../../../shared/units/utils";
 import { ImageNameInputComponent } from "../../../../../../../shared/components/image-name-input/image-name-input.component";
 import { CopyInputComponent } from "../../../../../../../shared/components/push-image/copy-input.component";
@@ -63,6 +68,7 @@ import { errorHandler } from "../../../../../../../shared/units/shared.utils";
 import { ConfirmationDialogComponent } from "../../../../../../../shared/components/confirmation-dialog";
 import { ConfirmationMessage } from "../../../../../../global-confirmation-dialog/confirmation-message";
 import { ConfirmationAcknowledgement } from "../../../../../../global-confirmation-dialog/confirmation-state-message";
+
 export interface LabelState {
   iconsShow: boolean;
   label: Label;
@@ -164,7 +170,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   // could Pagination filter
   filters: string[];
 
-  scanFiinishArtifactLength: number = 0;
+  scanFinishedArtifactLength: number = 0;
   onScanArtifactsLength: number = 0;
   constructor(
     private errorHandlerService: ErrorHandler,
@@ -367,6 +373,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
               this.loading = false;
             })).subscribe(artifacts => {
               this.artifactList = artifacts;
+              this.artifactList = doSorting<ArtifactFront>(this.artifactList, state);
               this.artifactList.forEach((artifact, index) => {
                 artifact.platform = clone(platFormAttr[index].platform);
               });
@@ -387,6 +394,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
           withLabel: true,
           withScanOverview: true,
           withTag: false,
+          sort: getSortingString(state),
           XAcceptVulnerabilities: DEFAULT_SUPPORTED_MIME_TYPES
         };
         Object.assign(listArtifactParams, params);
@@ -470,7 +478,20 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
     this.stickName = '';
     this.labelSelectedChange(this.selectedRow);
   }
-
+  canAddLabel(): boolean {
+    if (this.selectedRow && this.selectedRow.length === 1) {
+      return true;
+    }
+    if (this.selectedRow && this.selectedRow.length > 1) {
+      for (let i = 0; i < this.selectedRow.length; i ++) {
+        if (this.selectedRow[i].labels && this.selectedRow[i].labels.length) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
   stickLabel(labelInfo: LabelState): void {
     if (labelInfo && !labelInfo.iconsShow) {
       this.selectLabel(labelInfo);
@@ -481,37 +502,39 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
   }
 
   selectLabel(labelInfo: LabelState): void {
-    if (!this.inprogress) {
-      this.inprogress = true;
-      this.selectedRow = this.selectedTag;
-      let params: NewArtifactService.AddLabelParams = {
-        projectName: this.projectName,
-        repositoryName: dbEncodeURIComponent(this.repoName),
-        reference: this.selectedRow[0].digest,
-        label: labelInfo.label
-      };
-      this.newArtifactService.addLabel(params).subscribe(res => {
-        this.refresh();
-        // set the selected label in front
-        this.imageStickLabels.splice(this.imageStickLabels.indexOf(labelInfo), 1);
-        this.imageStickLabels.some((data, i) => {
-          if (!data.iconsShow) {
-            this.imageStickLabels.splice(i, 0, labelInfo);
-            return true;
-          }
-        });
-
-        // when is the last one
-        if (this.imageStickLabels.every(data => data.iconsShow === true)) {
-          this.imageStickLabels.push(labelInfo);
-        }
-
-        labelInfo.iconsShow = true;
-        this.inprogress = false;
-      }, err => {
-        this.inprogress = false;
-        this.errorHandlerService.error(err);
+    if (!this.inprogress) { // add label to multiple artifact
+      const ObservableArr: Array<Observable<null>> = [];
+      this.selectedRow.forEach(item => {
+        const params: NewArtifactService.AddLabelParams = {
+          projectName: this.projectName,
+          repositoryName: dbEncodeURIComponent(this.repoName),
+          reference: item.digest,
+          label: labelInfo.label
+        };
+        ObservableArr.push(this.newArtifactService.addLabel(params));
       });
+      this.inprogress = true;
+      forkJoin(ObservableArr)
+          .pipe(finalize(() => this.inprogress = false))
+          .subscribe(res => {
+            this.refresh();
+            // set the selected label in front
+            this.imageStickLabels.splice(this.imageStickLabels.indexOf(labelInfo), 1);
+            this.imageStickLabels.some((data, i) => {
+              if (!data.iconsShow) {
+                this.imageStickLabels.splice(i, 0, labelInfo);
+                return true;
+              }
+            });
+            // when is the last one
+            if (this.imageStickLabels.every(data => data.iconsShow === true)) {
+              this.imageStickLabels.push(labelInfo);
+            }
+            labelInfo.iconsShow = true;
+          }, err => {
+            this.refresh();
+            this.errorHandlerService.error(err);
+          });
     }
   }
 
@@ -875,7 +898,7 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
     if (!this.selectedRow.length) {
       return;
     }
-    this.scanFiinishArtifactLength = 0;
+    this.scanFinishedArtifactLength = 0;
     this.onScanArtifactsLength = this.selectedRow.length;
     this.onSendingScanCommand = true;
     this.selectedRow.forEach((data: any) => {
@@ -893,9 +916,9 @@ export class ArtifactListTabComponent implements OnInit, OnDestroy {
     return !!(artifact && artifact.addition_links && artifact.addition_links[ADDITIONS.VULNERABILITIES]);
   }
   submitFinish(e: boolean) {
-    this.scanFiinishArtifactLength += 1;
+    this.scanFinishedArtifactLength += 1;
     // all selected scan action has start
-    if (this.scanFiinishArtifactLength === this.onScanArtifactsLength) {
+    if (this.scanFinishedArtifactLength === this.onScanArtifactsLength) {
       this.onSendingScanCommand = e;
     }
   }

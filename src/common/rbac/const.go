@@ -41,6 +41,7 @@ const (
 	ResourceHelmChartVersionLabel = Resource("helm-chart-version-label")
 	ResourceLabel                 = Resource("label")
 	ResourceLog                   = Resource("log")
+	ResourceLdapUser              = Resource("ldap-user")
 	ResourceMember                = Resource("member")
 	ResourceMetadata              = Resource("metadata")
 	ResourceQuota                 = Resource("quota")
@@ -73,4 +74,5 @@ const (
 	ResourceScanAll            = Resource("scan-all")
 	ResourceSystemVolumes      = Resource("system-volumes")
 	ResourceOIDCEndpoint       = Resource("oidc-endpoint")
+	ResourceSystemCVEAllowList = Resource("system-cve-allowlist")
 )
