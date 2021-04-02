@@ -34,32 +34,13 @@ func registerLegacyRoutes() {
 	beego.Router("/api/"+version+"/usergroups/?:ugid([0-9]+)", &api.UserGroupAPI{})
 	beego.Router("/api/"+version+"/email/ping", &api.EmailAPI{}, "post:Ping")
 	beego.Router("/api/"+version+"/health", &api.HealthAPI{}, "get:CheckHealth")
-	beego.Router("/api/"+version+"/search", &api.SearchAPI{})
 	beego.Router("/api/"+version+"/projects/:id([0-9]+)/metadatas/?:name", &api.MetadataAPI{}, "get:Get")
 	beego.Router("/api/"+version+"/projects/:id([0-9]+)/metadatas/", &api.MetadataAPI{}, "post:Post")
-
-	beego.Router("/api/"+version+"/replication/adapters", &api.ReplicationAdapterAPI{}, "get:List")
-	beego.Router("/api/"+version+"/replication/adapterinfos", &api.ReplicationAdapterAPI{}, "get:ListAdapterInfos")
-	beego.Router("/api/"+version+"/replication/policies", &api.ReplicationPolicyAPI{}, "get:List;post:Create")
-	beego.Router("/api/"+version+"/replication/policies/:id([0-9]+)", &api.ReplicationPolicyAPI{}, "get:Get;put:Update;delete:Delete")
-
-	beego.Router("/api/"+version+"/projects/:pid([0-9]+)/webhook/policies", &api.NotificationPolicyAPI{}, "get:List;post:Post")
-	beego.Router("/api/"+version+"/projects/:pid([0-9]+)/webhook/policies/:id([0-9]+)", &api.NotificationPolicyAPI{})
-	beego.Router("/api/"+version+"/projects/:pid([0-9]+)/webhook/lasttrigger", &api.NotificationPolicyAPI{}, "get:ListGroupByEventType")
-	beego.Router("/api/"+version+"/projects/:pid([0-9]+)/webhook/events", &api.NotificationPolicyAPI{}, "get:GetSupportedEventTypes")
-	beego.Router("/api/"+version+"/projects/:pid([0-9]+)/webhook/jobs/", &api.NotificationJobAPI{}, "get:List")
 
 	beego.Router("/api/"+version+"/configurations", &api.ConfigAPI{}, "get:Get;put:Put")
 	beego.Router("/api/"+version+"/statistics", &api.StatisticAPI{})
 	beego.Router("/api/"+version+"/labels", &api.LabelAPI{}, "post:Post;get:List")
 	beego.Router("/api/"+version+"/labels/:id([0-9]+)", &api.LabelAPI{}, "get:Get;put:Put;delete:Delete")
-
-	beego.Router("/api/"+version+"/registries", &api.RegistryAPI{}, "get:List;post:Post")
-	beego.Router("/api/"+version+"/registries/:id([0-9]+)", &api.RegistryAPI{}, "get:Get;put:Put;delete:Delete")
-	beego.Router("/api/"+version+"/registries/ping", &api.RegistryAPI{}, "post:Ping")
-	// we use "0" as the ID of the local Harbor registry, so don't add "([0-9]+)" in the path
-	beego.Router("/api/"+version+"/registries/:id/info", &api.RegistryAPI{}, "get:GetInfo")
-	beego.Router("/api/"+version+"/registries/:id/namespace", &api.RegistryAPI{}, "get:GetNamespace")
 
 	// APIs for chart repository
 	if config.WithChartMuseum() {

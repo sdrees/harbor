@@ -43,6 +43,7 @@ const expireDays = 10;
 })
 
 export class SignInComponent implements AfterViewChecked, OnInit {
+    showPwd: boolean = false;
     redirectUrl: string = "";
     appConfig: AppConfig = new AppConfig();
     // Remeber me indicator
@@ -82,8 +83,8 @@ export class SignInComponent implements AfterViewChecked, OnInit {
             if (customSkinObj.loginBgImg) {
                 this.customLoginBgImg = customSkinObj.loginBgImg;
             }
-            if (customSkinObj.appTitle) {
-                this.customAppTitle = customSkinObj.appTitle;
+            if (customSkinObj.loginTitle) {
+                this.customAppTitle = customSkinObj.loginTitle;
             }
         }
 

@@ -18,7 +18,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/goharbor/harbor/src/replication/model"
+	repctlmodel "github.com/goharbor/harbor/src/controller/replication/model"
+	"github.com/goharbor/harbor/src/pkg/reg/model"
 	"github.com/goharbor/harbor/src/testing/pkg/task"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -32,7 +33,7 @@ func (d *deletionFlowTestSuite) TestRun() {
 	taskMgr := &task.Manager{}
 	taskMgr.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(int64(1), nil)
 
-	policy := &model.Policy{
+	policy := &repctlmodel.Policy{
 		SrcRegistry: &model.Registry{
 			Type: model.RegistryTypeHarbor,
 		},

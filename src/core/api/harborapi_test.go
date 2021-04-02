@@ -39,8 +39,6 @@ import (
 	_ "github.com/goharbor/harbor/src/core/auth/db"
 	_ "github.com/goharbor/harbor/src/core/auth/ldap"
 	"github.com/goharbor/harbor/src/core/config"
-	"github.com/goharbor/harbor/src/pkg/notification"
-	"github.com/goharbor/harbor/src/replication/model"
 	"github.com/goharbor/harbor/src/server/middleware"
 	"github.com/goharbor/harbor/src/server/middleware/orm"
 	"github.com/goharbor/harbor/src/server/middleware/security"
@@ -95,7 +93,6 @@ func init() {
 	beego.TestBeegoInit(apppath)
 
 	beego.Router("/api/health", &HealthAPI{}, "get:CheckHealth")
-	beego.Router("/api/search/", &SearchAPI{})
 	beego.Router("/api/users/:id", &UserAPI{}, "get:Get")
 	beego.Router("/api/users", &UserAPI{}, "get:List;post:Post;delete:Delete;put:Put")
 	beego.Router("/api/users/search", &UserAPI{}, "get:Search")
@@ -109,25 +106,12 @@ func init() {
 	beego.Router("/api/statistics", &StatisticAPI{})
 	beego.Router("/api/users/?:id", &UserAPI{})
 	beego.Router("/api/usergroups/?:ugid([0-9]+)", &UserGroupAPI{})
-	beego.Router("/api/registries", &RegistryAPI{}, "get:List;post:Post")
-	beego.Router("/api/registries/ping", &RegistryAPI{}, "post:Ping")
-	beego.Router("/api/registries/:id([0-9]+)", &RegistryAPI{}, "get:Get;put:Put;delete:Delete")
 	beego.Router("/api/configurations", &ConfigAPI{})
 	beego.Router("/api/configs", &ConfigAPI{}, "get:GetInternalConfig")
 	beego.Router("/api/email/ping", &EmailAPI{}, "post:Ping")
 	beego.Router("/api/labels", &LabelAPI{}, "post:Post;get:List")
 	beego.Router("/api/labels/:id([0-9]+", &LabelAPI{}, "get:Get;put:Put;delete:Delete")
 
-	beego.Router("/api/replication/adapters", &ReplicationAdapterAPI{}, "get:List")
-
-	beego.Router("/api/replication/policies", &ReplicationPolicyAPI{}, "get:List;post:Create")
-	beego.Router("/api/replication/policies/:id([0-9]+)", &ReplicationPolicyAPI{}, "get:Get;put:Update;delete:Delete")
-
-	beego.Router("/api/projects/:pid([0-9]+)/webhook/policies", &NotificationPolicyAPI{}, "get:List;post:Post")
-	beego.Router("/api/projects/:pid([0-9]+)/webhook/policies/:id([0-9]+)", &NotificationPolicyAPI{})
-	beego.Router("/api/projects/:pid([0-9]+)/webhook/policies/test", &NotificationPolicyAPI{}, "post:Test")
-	beego.Router("/api/projects/:pid([0-9]+)/webhook/lasttrigger", &NotificationPolicyAPI{}, "get:ListGroupByEventType")
-	beego.Router("/api/projects/:pid([0-9]+)/webhook/jobs/", &NotificationJobAPI{}, "get:List")
 	// Charts are controlled under projects
 	chartRepositoryAPIType := &ChartRepositoryAPI{}
 	beego.Router("/api/chartrepo/health", chartRepositoryAPIType, "get:GetHealthStatus")
@@ -156,9 +140,6 @@ func init() {
 	admin = &usrInfo{adminName, adminPwd}
 	unknownUsr = &usrInfo{"unknown", "unknown"}
 	testUser = &usrInfo{TestUserName, TestUserPwd}
-
-	// Init notification related check map
-	notification.Init()
 
 	// Init mock jobservice
 	mockServer := test.NewJobServiceServer()
@@ -823,40 +804,6 @@ func (a testapi) DeleteMeta(authInfor usrInfo, projectID int64, name string) (in
 
 	code, body, err := request(_sling, jsonAcceptHeader, authInfor)
 	return code, string(body), err
-}
-
-func (a testapi) RegistryGet(authInfo usrInfo, registryID int64) (*model.Registry, int, error) {
-	_sling := sling.New().Base(a.basePath).Get(fmt.Sprintf("/api/registries/%d", registryID))
-	code, body, err := request(_sling, jsonAcceptHeader, authInfo)
-	if err == nil && code == http.StatusOK {
-		registry := model.Registry{}
-		if err := json.Unmarshal(body, &registry); err != nil {
-			return nil, code, err
-		}
-		return &registry, code, nil
-	}
-	return nil, code, err
-}
-
-func (a testapi) RegistryList(authInfo usrInfo) ([]*model.Registry, int, error) {
-	_sling := sling.New().Base(a.basePath).Get("/api/registries")
-	code, body, err := request(_sling, jsonAcceptHeader, authInfo)
-	if err != nil || code != http.StatusOK {
-		return nil, code, err
-	}
-
-	var registries []*model.Registry
-	if err := json.Unmarshal(body, &registries); err != nil {
-		return nil, code, err
-	}
-
-	return registries, code, nil
-}
-
-func (a testapi) RegistryCreate(authInfo usrInfo, registry *model.Registry) (int, error) {
-	_sling := sling.New().Base(a.basePath).Post("/api/registries").BodyJSON(registry)
-	code, _, err := request(_sling, jsonAcceptHeader, authInfo)
-	return code, err
 }
 
 type pingReq struct {

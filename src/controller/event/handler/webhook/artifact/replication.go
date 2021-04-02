@@ -1,6 +1,7 @@
 package artifact
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,8 +18,8 @@ import (
 	"github.com/goharbor/harbor/src/lib/orm"
 	"github.com/goharbor/harbor/src/pkg/notification"
 	"github.com/goharbor/harbor/src/pkg/notifier/model"
-	rep "github.com/goharbor/harbor/src/replication"
-	rpModel "github.com/goharbor/harbor/src/replication/model"
+	"github.com/goharbor/harbor/src/pkg/reg"
+	rpModel "github.com/goharbor/harbor/src/pkg/reg/model"
 )
 
 // ReplicationHandler preprocess replication event data
@@ -31,7 +32,7 @@ func (r *ReplicationHandler) Name() string {
 }
 
 // Handle ...
-func (r *ReplicationHandler) Handle(value interface{}) error {
+func (r *ReplicationHandler) Handle(ctx context.Context, value interface{}) error {
 	if !config.NotificationEnable() {
 		log.Debug("notification feature is not enabled")
 		return nil
@@ -50,7 +51,7 @@ func (r *ReplicationHandler) Handle(value interface{}) error {
 		return err
 	}
 
-	policies, err := notification.PolicyMgr.GetRelatedPolices(project.ProjectID, rpEvent.EventType)
+	policies, err := notification.PolicyMgr.GetRelatedPolices(orm.Context(), project.ProjectID, rpEvent.EventType)
 	if err != nil {
 		log.Errorf("failed to find policy for %s event: %v", rpEvent.EventType, err)
 		return err
@@ -85,7 +86,7 @@ func constructReplicationPayload(event *event.ReplicationEvent) (*model.Payload,
 		return nil, nil, err
 	}
 
-	rpPolicy, err := rep.PolicyCtl.Get(execution.PolicyID)
+	rpPolicy, err := replication.Ctl.GetPolicy(ctx, execution.PolicyID)
 	if err != nil {
 		log.Errorf("failed to get replication policy %d: error: %v", execution.PolicyID, err)
 		return nil, nil, err
@@ -103,13 +104,10 @@ func constructReplicationPayload(event *event.ReplicationEvent) (*model.Payload,
 		remoteRegID = rpPolicy.DestRegistry.ID
 	}
 
-	remoteRegistry, err := rep.RegistryMgr.Get(remoteRegID)
+	remoteRegistry, err := reg.Mgr.Get(ctx, remoteRegID)
 	if err != nil {
 		log.Errorf("failed to get replication remoteRegistry registry %d: error: %v", remoteRegID, err)
 		return nil, nil, err
-	}
-	if remoteRegistry == nil {
-		return nil, nil, fmt.Errorf("registry %d not found with replication event", remoteRegID)
 	}
 
 	srcNamespace, srcNameAndTag := getMetadataFromResource(task.SourceResource)
