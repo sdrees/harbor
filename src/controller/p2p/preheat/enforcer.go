@@ -17,6 +17,8 @@ package preheat
 import (
 	"context"
 	"fmt"
+	"github.com/goharbor/harbor/src/lib/config"
+	"github.com/goharbor/harbor/src/lib/orm"
 	"strings"
 
 	tk "github.com/docker/distribution/registry/auth/token"
@@ -25,13 +27,13 @@ import (
 	"github.com/goharbor/harbor/src/controller/project"
 	"github.com/goharbor/harbor/src/controller/scan"
 	"github.com/goharbor/harbor/src/controller/tag"
-	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/core/service/token"
 	"github.com/goharbor/harbor/src/jobservice/job"
 	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/lib/q"
 	"github.com/goharbor/harbor/src/lib/selector"
+	"github.com/goharbor/harbor/src/pkg/label/model"
 	"github.com/goharbor/harbor/src/pkg/p2p/preheat"
 	"github.com/goharbor/harbor/src/pkg/p2p/preheat/instance"
 	pol "github.com/goharbor/harbor/src/pkg/p2p/preheat/models/policy"
@@ -170,7 +172,7 @@ func NewEnforcer() Enforcer {
 					Actions: []string{resourcePullAction},
 				},
 			}
-			t, err := token.MakeToken("distributor", token.Registry, ac)
+			t, err := token.MakeToken(orm.Context(), "distributor", token.Registry, ac)
 			if err != nil {
 				return "", err
 			}
@@ -569,7 +571,7 @@ func pureRepository(ns, r string) string {
 }
 
 // getLabels gets label texts from the label objects
-func getLabels(labels []*models.Label) []string {
+func getLabels(labels []*model.Label) []string {
 	lt := make([]string, 0)
 	for _, l := range labels {
 		lt = append(lt, l.Name)

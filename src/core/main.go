@@ -34,6 +34,7 @@ import (
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/utils"
 	_ "github.com/goharbor/harbor/src/controller/event/handler"
+	"github.com/goharbor/harbor/src/controller/health"
 	"github.com/goharbor/harbor/src/controller/registry"
 	"github.com/goharbor/harbor/src/core/api"
 	_ "github.com/goharbor/harbor/src/core/auth/authproxy"
@@ -41,12 +42,12 @@ import (
 	_ "github.com/goharbor/harbor/src/core/auth/ldap"
 	_ "github.com/goharbor/harbor/src/core/auth/oidc"
 	_ "github.com/goharbor/harbor/src/core/auth/uaa"
-	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/core/middlewares"
 	"github.com/goharbor/harbor/src/core/service/token"
 	"github.com/goharbor/harbor/src/lib/cache"
 	_ "github.com/goharbor/harbor/src/lib/cache/memory" // memory cache
 	_ "github.com/goharbor/harbor/src/lib/cache/redis"  // redis cache
+	"github.com/goharbor/harbor/src/lib/config"
 	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/lib/metric"
 	"github.com/goharbor/harbor/src/lib/orm"
@@ -189,7 +190,7 @@ func main() {
 	if err = migration.Migrate(database); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}
-	if err := config.Load(); err != nil {
+	if err := config.Load(orm.Context()); err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
@@ -206,6 +207,7 @@ func main() {
 		log.Fatalf("Failed to initialize API handlers with error: %s", err.Error())
 	}
 
+	health.RegisterHealthCheckers()
 	registerScanners(orm.Context())
 
 	closing := make(chan struct{})

@@ -14,10 +14,11 @@
 package controllers
 
 import (
-	"context"
 	"fmt"
 	"github.com/goharbor/harbor/src/core/middlewares"
 	"github.com/goharbor/harbor/src/lib"
+	"github.com/goharbor/harbor/src/lib/config"
+	"github.com/goharbor/harbor/src/lib/orm"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,7 +31,8 @@ import (
 	"github.com/goharbor/harbor/src/common"
 	"github.com/goharbor/harbor/src/common/models"
 	utilstest "github.com/goharbor/harbor/src/common/utils/test"
-	"github.com/goharbor/harbor/src/core/config"
+	_ "github.com/goharbor/harbor/src/pkg/config/db"
+	_ "github.com/goharbor/harbor/src/pkg/config/inmemory"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,9 +88,9 @@ func TestUserResettable(t *testing.T) {
 }
 
 func TestRedirectForOIDC(t *testing.T) {
-	ctx := lib.WithAuthMode(context.Background(), common.DBAuth)
+	ctx := lib.WithAuthMode(orm.Context(), common.DBAuth)
 	assert.False(t, redirectForOIDC(ctx, "nonexist"))
-	ctx = lib.WithAuthMode(context.Background(), common.OIDCAuth)
+	ctx = lib.WithAuthMode(orm.Context(), common.OIDCAuth)
 	assert.True(t, redirectForOIDC(ctx, "nonexist"))
 	assert.False(t, redirectForOIDC(ctx, "admin"))
 

@@ -17,6 +17,9 @@ package v2auth
 import (
 	"context"
 	"fmt"
+	testutils "github.com/goharbor/harbor/src/common/utils/test"
+	"github.com/goharbor/harbor/src/lib/config"
+
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,8 +32,8 @@ import (
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/security"
 	"github.com/goharbor/harbor/src/controller/project"
-	"github.com/goharbor/harbor/src/core/config"
 	"github.com/goharbor/harbor/src/lib"
+	_ "github.com/goharbor/harbor/src/pkg/config/inmemory"
 	"github.com/goharbor/harbor/src/pkg/permission/types"
 	securitytesting "github.com/goharbor/harbor/src/testing/common/security"
 	projecttesting "github.com/goharbor/harbor/src/testing/controller/project"
@@ -39,6 +42,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	testutils.InitDatabaseFromEnv()
 	ctl := &projecttesting.Controller{}
 
 	mockGet := func(ctx context.Context,

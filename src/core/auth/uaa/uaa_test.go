@@ -15,14 +15,17 @@
 package uaa
 
 import (
+	"github.com/goharbor/harbor/src/lib/config"
 	"os"
 	"testing"
+
+	_ "github.com/goharbor/harbor/src/pkg/config/db"
+	_ "github.com/goharbor/harbor/src/pkg/config/inmemory"
 
 	"github.com/goharbor/harbor/src/common/dao"
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/utils/test"
 	"github.com/goharbor/harbor/src/common/utils/uaa"
-	"github.com/goharbor/harbor/src/core/config"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -19,13 +19,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/goharbor/harbor/src/lib/config"
+
 	common_dao "github.com/goharbor/harbor/src/common/dao"
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/controller/event"
 	"github.com/goharbor/harbor/src/controller/project"
 	repctl "github.com/goharbor/harbor/src/controller/replication"
 	repctlmodel "github.com/goharbor/harbor/src/controller/replication/model"
-	"github.com/goharbor/harbor/src/core/config"
+	_ "github.com/goharbor/harbor/src/pkg/config/db"
+	_ "github.com/goharbor/harbor/src/pkg/config/inmemory"
 	"github.com/goharbor/harbor/src/pkg/notification"
 	policy_model "github.com/goharbor/harbor/src/pkg/notification/policy/model"
 	projecttesting "github.com/goharbor/harbor/src/testing/controller/project"
