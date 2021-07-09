@@ -38,6 +38,25 @@ import (
 //   ...
 //	 return qs
 // }
+//
+// Defining the method "GetDefaultSorts() []*q.Sort" for the model whose default sorting contains more than one fields
+// type Bar struct{
+//   Field1 string
+//   Field2 string
+// }
+// // Sort by "Field1" desc, "Field2"
+// func (b *Bar) GetDefaultSorts() []*q.Sort {
+//	return []*q.Sort{
+//		{
+//			Key:  "Field1",
+//			DESC: true,
+//		},
+//		{
+//			Key:  "Field2",
+//			DESC: false,
+//		},
+//	 }
+// }
 func QuerySetter(ctx context.Context, model interface{}, query *q.Query) (orm.QuerySeter, error) {
 	t := reflect.TypeOf(model)
 	if t.Kind() != reflect.Ptr {
@@ -137,7 +156,9 @@ func setFilters(ctx context.Context, qs orm.QuerySeter, query *q.Query, meta *me
 		}
 		// or list
 		if ol, ok := value.(*q.OrList); ok {
-			if len(ol.Values) > 0 {
+			if ol == nil || len(ol.Values) == 0 {
+				qs = qs.Filter(key+"__in", nil)
+			} else {
 				qs = qs.Filter(key+"__in", ol.Values...)
 			}
 			continue
@@ -167,12 +188,14 @@ func setSorts(qs orm.QuerySeter, query *q.Query, meta *metadata) orm.QuerySeter 
 		sortings = append(sortings, sorting)
 	}
 	// if no sorts are specified, apply the default sort setting if exists
-	if len(sortings) == 0 && meta.DefaultSort != nil {
-		sorting := meta.DefaultSort.Key
-		if meta.DefaultSort.DESC {
-			sorting = fmt.Sprintf("-%s", sorting)
+	if len(sortings) == 0 {
+		for _, ds := range meta.DefaultSorts {
+			sorting := ds.Key
+			if ds.DESC {
+				sorting = fmt.Sprintf("-%s", sorting)
+			}
+			sortings = append(sortings, sorting)
 		}
-		sortings = append(sortings, sorting)
 	}
 	if len(sortings) > 0 {
 		qs = qs.OrderBy(sortings...)

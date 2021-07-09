@@ -21,14 +21,20 @@ import (
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/utils"
 	"github.com/goharbor/harbor/src/lib/config/metadata"
+	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/lib/log"
 	"github.com/goharbor/harbor/src/pkg/config/store"
+	"github.com/goharbor/harbor/src/pkg/config/validate"
 	"os"
 )
 
 // CfgManager ... Configure Manager
 type CfgManager struct {
 	Store *store.ConfigStore
+}
+
+var validateRules = []validate.Rule{
+	&validate.LdapGroupValidateRule{},
 }
 
 // LoadDefault ...
@@ -172,10 +178,23 @@ func (c *CfgManager) UpdateConfig(ctx context.Context, cfgs map[string]interface
 // ValidateCfg validate config by metadata. return the first error if exist.
 func (c *CfgManager) ValidateCfg(ctx context.Context, cfgs map[string]interface{}) error {
 	for key, value := range cfgs {
+		item, exist := metadata.Instance().GetByName(key)
+		if !exist {
+			return errors.New(fmt.Sprintf("invalid config, item not defined in metadatalist, %v", key))
+		}
+		if item.Scope == metadata.SystemScope {
+			return errors.New(fmt.Sprintf("system config items cannot be updated, item: %v", key))
+		}
 		strVal := utils.GetStrValueOfAnyType(value)
 		_, err := metadata.NewCfgValue(key, strVal)
 		if err != nil {
-			return fmt.Errorf("%v, item name: %v", err, key)
+			return errors.Wrap(err, "item name "+key)
+		}
+	}
+
+	for _, r := range validateRules {
+		if err := r.Validate(ctx, c, cfgs); err != nil {
+			return err
 		}
 	}
 	return nil

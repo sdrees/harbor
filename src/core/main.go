@@ -26,13 +26,14 @@ import (
 	"syscall"
 	"time"
 
+	configCtl "github.com/goharbor/harbor/src/controller/config"
+
 	"github.com/astaxie/beego"
 	_ "github.com/astaxie/beego/session/redis"
 	_ "github.com/astaxie/beego/session/redis_sentinel"
 	"github.com/goharbor/harbor/src/common/dao"
 	common_http "github.com/goharbor/harbor/src/common/http"
 	"github.com/goharbor/harbor/src/common/models"
-	"github.com/goharbor/harbor/src/common/utils"
 	_ "github.com/goharbor/harbor/src/controller/event/handler"
 	"github.com/goharbor/harbor/src/controller/health"
 	"github.com/goharbor/harbor/src/controller/registry"
@@ -56,6 +57,7 @@ import (
 	_ "github.com/goharbor/harbor/src/pkg/notifier/topic"
 	"github.com/goharbor/harbor/src/pkg/scan"
 	"github.com/goharbor/harbor/src/pkg/scan/dao/scanner"
+	pkguser "github.com/goharbor/harbor/src/pkg/user"
 	"github.com/goharbor/harbor/src/pkg/version"
 	"github.com/goharbor/harbor/src/server"
 )
@@ -64,23 +66,16 @@ const (
 	adminUserID = 1
 )
 
-func updateInitPassword(userID int, password string) error {
-	queryUser := models.User{UserID: userID}
-	user, err := dao.GetUser(queryUser)
+func updateInitPassword(ctx context.Context, userID int, password string) error {
+	userMgr := pkguser.Mgr
+	user, err := userMgr.Get(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("Failed to get user, userID: %d %v", userID, err)
-	}
-	if user == nil {
-		return fmt.Errorf("user id: %d does not exist", userID)
+		return fmt.Errorf("failed to get user, userID: %d %v", userID, err)
 	}
 	if user.Salt == "" {
-		salt := utils.GenerateRandomString()
-
-		user.Salt = salt
-		user.Password = password
-		err = dao.ChangeUserPassword(*user)
+		err = userMgr.UpdatePassword(ctx, userID, password)
 		if err != nil {
-			return fmt.Errorf("Failed to update user encrypted password, userID: %d, err: %v", userID, err)
+			return fmt.Errorf("failed to update user encrypted password, userID: %d, err: %v", userID, err)
 		}
 
 		log.Infof("User id: %d updated its encrypted password successfully.", userID)
@@ -190,15 +185,18 @@ func main() {
 	if err = migration.Migrate(database); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}
-	if err := config.Load(orm.Context()); err != nil {
+	ctx := orm.Context()
+	if err := config.Load(ctx); err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
-
+	if err := configCtl.Ctl.OverwriteConfig(ctx); err != nil {
+		log.Fatalf("failed to init config from CONFIG_OVERWRITE_JSON, error %v", err)
+	}
 	password, err := config.InitialAdminPassword()
 	if err != nil {
 		log.Fatalf("failed to get admin's initial password: %v", err)
 	}
-	if err := updateInitPassword(adminUserID, password); err != nil {
+	if err := updateInitPassword(ctx, adminUserID, password); err != nil {
 		log.Error(err)
 	}
 

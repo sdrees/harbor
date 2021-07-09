@@ -8,7 +8,6 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { ArtifactDefaultService, ArtifactService } from "../../../artifact.service";
 import {
   Label,
-  LabelDefaultService,
   ProjectDefaultService,
   ProjectService,
   ScanningResultDefaultService,
@@ -353,7 +352,7 @@ describe("ArtifactListTabComponent (inline template)", () => {
     spyLabels = spyOn(labelService, "ListLabelsResponse").and.returnValues(
      of(response).pipe(delay(0))
     );
-    spyLabels1 = spyOn(labelService, "ListLabels").withArgs(comp.projectId).and.returnValues(of(mockLabels1).pipe(delay(0)));
+    spyLabels1 = spyOn(labelService, "ListLabels").withArgs({projectId: comp.projectId}).and.returnValues(of(mockLabels1).pipe(delay(0)));
     fixture.detectChanges();
   });
 

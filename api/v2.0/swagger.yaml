@@ -26,6 +26,8 @@ paths:
       tags:
         - health
       operationId: getHealth
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: The health status of Harbor components
@@ -39,6 +41,7 @@ paths:
       description: |-
         The Search endpoint returns information about the projects, repositories and helm charts offered at public status or related to the current logged in user. The response includes the project, repository list and charts in a proper display order.
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: q
           in: query
           description: Search parameter for project and repository name.
@@ -61,6 +64,8 @@ paths:
       tags:
         - statistic
       operationId: getStatistic
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: The statistic information
@@ -77,6 +82,7 @@ paths:
       description: |
         This endpoint ping the available ldap service for test related configuration parameters.
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: ldapconf
           in: body
           description: 'ldap configuration. support input ldap service configuration. If it is a empty request, will load current configuration from the system.'
@@ -105,6 +111,7 @@ paths:
       description: |
         This endpoint searches the available ldap users based on related configuration parameters. Support searched by input ladp configuration, load configuration from the system and specific filter.
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: username
           in: query
           type: string
@@ -134,6 +141,7 @@ paths:
       description: |
         This endpoint adds the selected available ldap users to harbor based on related configuration parameters from the system. System will try to guess the user email address and realname, add to harbor user information. If have errors when import user, will return the list of importing failed uid and the failed reason.
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: uid_list
           in: body
           description: The uid listed for importing. This list will check users validity of ldap service based on configuration from the system.
@@ -166,6 +174,7 @@ paths:
       description: |
         This endpoint searches the available ldap groups based on related configuration parameters. support to search by groupname or groupdn.
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: groupname
           in: query
           type: string
@@ -196,6 +205,7 @@ paths:
   /internalconfig:
     get:
       summary: Get internal configurations.
+      operationId: getInternalconfig
       description: |
         This endpoint is for retrieving system configurations that only provides for internal api call.
       tags:
@@ -216,6 +226,7 @@ paths:
   /configurations:
     get:
       summary: Get system configurations.
+      operationId: getConfigurations
       description: |
         This endpoint is for retrieving system configurations that only provides for admin user.
       tags:
@@ -235,6 +246,7 @@ paths:
           description: Unexpected internal errors.
     put:
       summary: Modify system configurations.
+      operationId: updateConfigurations
       description: |
         This endpoint is for modifying system configurations that only provides for admin user.
       tags:
@@ -639,6 +651,164 @@ paths:
           $ref: '#/responses/401'
         '403':
           $ref: '#/responses/403'
+        '500':
+          $ref: '#/responses/500'
+  '/projects/{project_name_or_id}/metadatas/':
+    get:
+      summary: Get the metadata of the specific project
+      description: Get the metadata of the specific project
+      operationId: listProjectMetadatas
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - $ref: '#/parameters/isResourceName'
+        - $ref: '#/parameters/projectNameOrId'
+      tags:
+        - projectMetadata
+      responses:
+        '200':
+          description: Success
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+        '400':
+          $ref: '#/responses/400'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '404':
+          $ref: '#/responses/404'
+        '500':
+          $ref: '#/responses/500'
+    post:
+      summary: Add metadata for the specific project
+      operationId: addProjectMetadatas
+      description: Add metadata for the specific project
+      tags:
+        - projectMetadata
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - $ref: '#/parameters/isResourceName'
+        - $ref: '#/parameters/projectNameOrId'
+        - name: metadata
+          in: body
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+      responses:
+        '200':
+          $ref: '#/responses/200'
+        '400':
+          $ref: '#/responses/400'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '404':
+          $ref: '#/responses/404'
+        '409':
+          $ref: '#/responses/409'
+        '500':
+          $ref: '#/responses/500'
+  '/projects/{project_name_or_id}/metadatas/{meta_name}':
+    get:
+      summary: Get the specific metadata of the specific project
+      description: Get the specific metadata of the specific project
+      operationId: getProjectMetadata
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - $ref: '#/parameters/isResourceName'
+        - $ref: '#/parameters/projectNameOrId'
+        - name: meta_name
+          in: path
+          description: The name of metadata.
+          required: true
+          type: string
+      tags:
+        - projectMetadata
+      responses:
+        '200':
+          description: Success
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+        '400':
+          $ref: '#/responses/400'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '404':
+          $ref: '#/responses/404'
+        '500':
+          $ref: '#/responses/500'
+    put:
+      summary: Update the specific metadata for the specific project
+      description: Update the specific metadata for the specific project
+      operationId: updateProjectMetadata
+      tags:
+        - projectMetadata
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - $ref: '#/parameters/isResourceName'
+        - $ref: '#/parameters/projectNameOrId'
+        - name: meta_name
+          in: path
+          description: The name of metadata.
+          required: true
+          type: string
+        - name: metadata
+          in: body
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+      responses:
+        '200':
+          $ref: '#/responses/200'
+        '400':
+          $ref: '#/responses/400'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '404':
+          $ref: '#/responses/404'
+        '409':
+          $ref: '#/responses/409'
+        '500':
+          $ref: '#/responses/500'
+    delete:
+      summary: Delete the specific metadata for the specific project
+      description: Delete the specific metadata for the specific project
+      operationId: deleteProjectMetadata
+      tags:
+        - projectMetadata
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - $ref: '#/parameters/isResourceName'
+        - $ref: '#/parameters/projectNameOrId'
+        - name: meta_name
+          in: path
+          description: The name of metadata.
+          required: true
+          type: string
+      responses:
+        '200':
+          $ref: '#/responses/200'
+        '400':
+          $ref: '#/responses/400'
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '404':
+          $ref: '#/responses/404'
+        '409':
+          $ref: '#/responses/409'
         '500':
           $ref: '#/responses/500'
   /repositories:
@@ -2527,6 +2697,11 @@ paths:
         - usergroup
       parameters:
         - $ref: '#/parameters/requestId'
+        - name: ldap_group_dn
+          in: query
+          type: string
+          required: false
+          description: search with ldap group DN
       responses:
         '200':
           description: Get user group successfully.
@@ -2965,6 +3140,7 @@ paths:
         - replication
       operationId: listReplicationPolicies
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/query'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/page'
@@ -3001,6 +3177,7 @@ paths:
         - replication
       operationId: createReplicationPolicy
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: policy
           in: body
           description: The replication policy
@@ -3028,6 +3205,7 @@ paths:
         - replication
       operationId: getReplicationPolicy
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -3052,6 +3230,7 @@ paths:
         - replication
       operationId: deleteReplicationPolicy
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -3078,6 +3257,7 @@ paths:
         - replication
       operationId: updateReplicationPolicy
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -3111,6 +3291,7 @@ paths:
         - replication
       operationId: listReplicationExecutions
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/page'
         - $ref: '#/parameters/pageSize'
@@ -3156,6 +3337,7 @@ paths:
         - replication
       operationId: startReplication
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: execution
           in: body
           description: The ID of policy that the execution belongs to
@@ -3181,6 +3363,7 @@ paths:
         - replication
       operationId: getReplicationExecution
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -3207,6 +3390,7 @@ paths:
         - replication
       operationId: stopReplication
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -3232,6 +3416,7 @@ paths:
         - replication
       operationId: listReplicationTasks
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/page'
         - $ref: '#/parameters/pageSize'
@@ -3281,6 +3466,7 @@ paths:
       produces:
         - text/plain
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -3570,6 +3756,8 @@ paths:
       tags:
         - scanAll
       operationId: getLatestScanAllMetrics
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: OK
@@ -3591,6 +3779,8 @@ paths:
         - scanAll
       operationId: getLatestScheduledScanAllMetrics
       deprecated: true
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: OK
@@ -3607,10 +3797,13 @@ paths:
   /systeminfo:
     get:
       summary: Get general system info
+      operationId: getSystemInfo
       description: |
         This API is for retrieving general system info, this can be called by anonymous request.  Some attributes will be omitted in the response when this API is called by anonymous request.
       tags:
         - systeminfo
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: Get general info successfully.
@@ -3621,10 +3814,13 @@ paths:
   /systeminfo/volumes:
     get:
       summary: Get system volume info (total/free size).
+      operationId: getVolumes
       description: |
         This endpoint is for retrieving system volume info that only provides for admin user.  Note that the response only reflects the storage status of local disk.
       tags:
         - systeminfo
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: Get system volumes successfully.
@@ -3641,12 +3837,15 @@ paths:
   /systeminfo/getcert:
     get:
       summary: Get default root certificate.
+      operationId: getCert
       description: |
         This endpoint is for downloading a default root certificate.
       tags:
         - systeminfo
       produces:
         - application/octet-stream
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: Get default root certificate successfully.
@@ -3669,6 +3868,7 @@ paths:
         - oidc
       operationId: pingOIDC
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: endpoint
           in: body
           description: Request body for OIDC endpoint to be tested.
@@ -3699,6 +3899,7 @@ paths:
         - gc
       operationId: getGCHistory
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/query'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/page'
@@ -3729,6 +3930,7 @@ paths:
       description: This endpoint let user get gc status filtered by specific ID.
       operationId: getGC
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/gcId'
       tags:
         - gc
@@ -3751,6 +3953,7 @@ paths:
       description: This endpoint let user get gc job logs filtered by specific ID.
       operationId: getGCLog
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/gcId'
       tags:
         - gc
@@ -3778,6 +3981,8 @@ paths:
       operationId: getGCSchedule
       tags:
         - gc
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: Get gc's schedule.
@@ -3795,6 +4000,7 @@ paths:
         This endpoint is for update gc schedule.
       operationId: createGCSchedule
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: schedule
           in: body
           required: true
@@ -3822,6 +4028,7 @@ paths:
         This endpoint is for update gc schedule.
       operationId: updateGCSchedule
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: schedule
           in: body
           required: true
@@ -3848,6 +4055,8 @@ paths:
       operationId: getSystemCVEAllowlist
       tags:
         - SystemCVEAllowlist
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: Successfully retrieved the CVE allowlist.
@@ -3865,6 +4074,7 @@ paths:
       tags:
         - SystemCVEAllowlist
       parameters:
+        - $ref: '#/parameters/requestId'
         - in: body
           name: allowlist
           description: The allowlist with new content
@@ -3886,6 +4096,8 @@ paths:
       tags:
         - scanAll
       operationId: getScanAllSchedule
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: Get a schedule for the scan all job, which scans all of images in Harbor.
@@ -3903,6 +4115,7 @@ paths:
       summary: Update scan all's schedule.
       description: This endpoint is for updating the schedule of scan all job, which scans all of images in Harbor.
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: schedule
           in: body
           required: true
@@ -3929,6 +4142,7 @@ paths:
       summary: Create a schedule or a manual trigger for the scan all job.
       description: This endpoint is for creating a schedule or a manual trigger for the scan all job, which scans all of images in Harbor.
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: schedule
           in: body
           required: true
@@ -3955,12 +4169,15 @@ paths:
           $ref: '#/responses/500'
   /ping:
     get:
+      operationId: getPing
       summary: Ping Harbor to check if it's alive.
       description: This API simply replies a pong to indicate the process to handle API is up, disregarding the health status of dependent components.
       tags:
         - ping
       produces:
         - text/plain
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: The API server is alive
@@ -3973,6 +4190,8 @@ paths:
       operationId: getRentenitionMetadata
       tags:
         - Retention
+      parameters:
+        - $ref: '#/parameters/requestId'
       responses:
         '200':
           description: Get Retention Metadatas successfully.
@@ -3990,6 +4209,7 @@ paths:
       tags:
         - Retention
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: policy
           in: body
           description: Create Retention Policy successfully.
@@ -4016,6 +4236,7 @@ paths:
       tags:
         - Retention
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -4043,6 +4264,7 @@ paths:
       tags:
         - Retention
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -4063,6 +4285,32 @@ paths:
           $ref: '#/responses/403'
         '500':
           $ref: '#/responses/500'
+    delete:
+      summary: Delete Retention Policy
+      operationId: deleteRetention
+      description: >-
+        Delete Retention Policy, you can reference metadatas API for the policy model.
+        You can check project metadatas to find whether a retention policy is already binded.
+        This method should only be called when retention policy has already binded to project.
+      tags:
+        - Retention
+      parameters:
+        - $ref: '#/parameters/requestId'
+        - name: id
+          in: path
+          type: integer
+          format: int64
+          required: true
+          description: Retention ID.
+      responses:
+        '200':
+          description: Update Retention Policy successfully.
+        '401':
+          $ref: '#/responses/401'
+        '403':
+          $ref: '#/responses/403'
+        '500':
+          $ref: '#/responses/500'
 
   /retentions/{id}/executions:
     post:
@@ -4074,6 +4322,7 @@ paths:
       produces:
         - text/plain
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -4106,6 +4355,7 @@ paths:
       tags:
         - Retention
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -4154,6 +4404,7 @@ paths:
       tags:
         - Retention
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -4193,6 +4444,7 @@ paths:
       tags:
         - Retention
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -4249,6 +4501,7 @@ paths:
       produces:
         - text/plain
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: id
           in: path
           type: integer
@@ -4466,6 +4719,7 @@ paths:
         - scanner
       operationId: setScannerAsDefault
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: registration_id
           in: path
           description: The scanner registration identifier.
@@ -4683,6 +4937,7 @@ paths:
       description: |
         This endpoint let administrator of Harbor mark a registered user as removed.It actually won't be deleted from DB.
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: user_id
           in: path
           type: integer
@@ -4710,6 +4965,7 @@ paths:
        - user
       operationId: setUserSysAdmin
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: user_id
           in: path
           type: integer
@@ -4741,6 +4997,7 @@ paths:
         - user
       operationId: updateUserPassword
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: user_id
           in: path
           type: integer
@@ -4770,6 +5027,7 @@ paths:
         - user
       operationId: getCurrentUserPermissions
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: scope
           in: query
           type: string
@@ -4890,6 +5148,7 @@ paths:
         - label
       operationId: CreateLabel
       parameters:
+        - $ref: '#/parameters/requestId'
         - name: label
           in: body
           description: The json object of label.
@@ -4922,6 +5181,7 @@ paths:
         - label
       operationId: GetLabelByID
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/labelId'
       responses:
         '200':
@@ -4942,6 +5202,7 @@ paths:
         - label
       operationId: UpdateLabel
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/labelId'
         - name: label
           in: body
@@ -4970,6 +5231,7 @@ paths:
         - label
       operationId: DeleteLabel
       parameters:
+        - $ref: '#/parameters/requestId'
         - $ref: '#/parameters/labelId'
       responses:
         '200':
@@ -5399,10 +5661,12 @@ definitions:
         type: integer
         format: int64
         description: The count of the artifacts inside the repository
+        x-omitempty: false
       pull_count:
         type: integer
         format: int64
         description: The count that the artifact inside the repository pulled
+        x-omitempty: false
       creation_time:
         type: string
         format: date-time
@@ -5651,12 +5915,12 @@ definitions:
         type: string
         format: date-time
         description: 'The start time of the scan process that generating report'
-        example: '2006-01-02T14:04:05'
+        example: '2006-01-02T14:04:05Z'
       end_time:
         type: string
         format: date-time
         description: 'The end time of the scan process that generating report'
-        example: '2006-01-02T15:04:05'
+        example: '2006-01-02T15:04:05Z'
       complete_percent:
         type: integer
         description: 'The complete percent of the scanning which value is between 0 and 100'
@@ -5712,7 +5976,7 @@ definitions:
       op_time:
         type: string
         format: date-time
-        example: '2006-01-02T15:04:05'
+        example: '2006-01-02T15:04:05Z'
         description: The time when this operation is triggered.
   Metadata:
     type: object
@@ -5935,6 +6199,7 @@ definitions:
       project_name:
         type: string
         description: The name of the project.
+        maxLength: 255
       public:
         type: boolean
         description: deprecated, reserved for project creation in replication
@@ -6002,9 +6267,11 @@ definitions:
       repo_count:
         type: integer
         description: The number of the repositories under this project.
+        x-omitempty: false
       chart_count:
         type: integer
         description: The total number of charts under this project.
+        x-omitempty: false
       metadata:
         description: The metadata of the project.
         $ref: '#/definitions/ProjectMetadata'
@@ -6057,9 +6324,11 @@ definitions:
       repo_count:
         type: integer
         description: The number of the repositories under this project.
+        x-omitempty: false
       chart_count:
         type: integer
         description: The total number of charts under this project.
+        x-omitempty: false
       project_admin_count:
         type: integer
         description: The total number of project admin members.
@@ -6151,6 +6420,13 @@ definitions:
       dest_namespace:
         type: string
         description: The destination namespace.
+      dest_namespace_replace_count:
+        type: integer
+        format: int8
+        description: |-
+          Specify how many path components will be replaced by the provided destination namespace.
+          The default value is -1 in which case the legacy mode will be applied.
+        x-isnullable: true # make this field optional to keep backward compatibility
       trigger:
         $ref: '#/definitions/ReplicationTrigger'
       filters:
@@ -7161,7 +7437,7 @@ definitions:
       adapter:
         type: string
         description: Optional property to describe the name of the scanner registration
-        example: "Clair"
+        example: "Trivy"
       vendor:
         type: string
         description: Optional property to describe the vendor of the scanner registration
@@ -7717,37 +7993,317 @@ definitions:
               daily_time:
                 type: integer
                 description: 'The offset in seconds of UTC 0 o''clock, only valid when the policy type is "daily"'
-            description: 'The parameters of the policy, the values are dependant on the type of the policy.'
+            description: 'The parameters of the policy, the values are dependent on the type of the policy.'
   Configurations:
     type: object
-    additionalProperties:
-      type: object
+    properties: 
+      auth_mode:
+        type: string
+        description: The auth mode of current system, such as "db_auth", "ldap_auth", "oidc_auth" 
+        x-omitempty: true
+        x-isnullable: true
+      email_from:
+        type: string
+        description: The sender name for Email notification. 
+        x-omitempty: true
+        x-isnullable: true
+      email_host:
+        type: string
+        description: The hostname of SMTP server that sends Email notification. 
+        x-omitempty: true
+        x-isnullable: true
+      email_identity:
+        type: string
+        description: By default it's empty so the email_username is picked 
+        x-omitempty: true
+        x-isnullable: true
+      email_insecure:
+        type: boolean
+        description: Whether or not the certificate will be verified when Harbor tries to access the email server. 
+        x-omitempty: true
+        x-isnullable: true
+      email_password:
+        type: string
+        description: Email password 
+        x-omitempty: true
+        x-isnullable: true
+      email_port:
+        type: integer
+        description: The port of SMTP server 
+        x-omitempty: true
+        x-isnullable: true
+      email_ssl:
+        type: boolean
+        description: When it''s set to true the system will access Email server via TLS by default.  If it''s set to false, it still will handle "STARTTLS" from server side. 
+        x-omitempty: true
+        x-isnullable: true
+      email_username:
+        type: string
+        description: The username for authenticate against SMTP server 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_base_dn:
+        type: string
+        description: The Base DN for LDAP binding. 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_filter:
+        type: string
+        description: The filter for LDAP search 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_group_base_dn:
+        type: string
+        description: The base DN to search LDAP group. 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_group_admin_dn:
+        type: string
+        description: Specify the ldap group which have the same privilege with Harbor admin 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_group_attribute_name:
+        type: string
+        description: The attribute which is used as identity of the LDAP group, default is cn.' 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_group_search_filter:
+        type: string
+        description: The filter to search the ldap group 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_group_search_scope:
+        type: integer
+        description: The scope to search ldap group. ''0-LDAP_SCOPE_BASE, 1-LDAP_SCOPE_ONELEVEL, 2-LDAP_SCOPE_SUBTREE'' 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_scope:
+        type: integer
+        description: The scope to search ldap users,'0-LDAP_SCOPE_BASE, 1-LDAP_SCOPE_ONELEVEL, 2-LDAP_SCOPE_SUBTREE' 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_search_dn:
+        type: string
+        description: The DN of the user to do the search. 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_search_password:
+        type: string
+        description: The password of the ldap search dn 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_timeout:
+        type: integer
+        description: Timeout in seconds for connection to LDAP server 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_uid:
+        type: string
+        description: The attribute which is used as identity for the LDAP binding, such as "CN" or "SAMAccountname" 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_url:
+        type: string
+        description: The URL of LDAP server 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_verify_cert:
+        type: boolean
+        description: Whether verify your OIDC server certificate, disable it if your OIDC server is hosted via self-hosted certificate. 
+        x-omitempty: true
+        x-isnullable: true
+      ldap_group_membership_attribute:
+        type: string
+        description: The user attribute to identify the group membership 
+        x-omitempty: true
+        x-isnullable: true
+      project_creation_restriction:
+        type: string
+        description: Indicate who can create projects, it could be ''adminonly'' or ''everyone''. 
+        x-omitempty: true
+        x-isnullable: true
+      read_only:
+        type: boolean
+        description: The flag to indicate whether Harbor is in readonly mode. 
+        x-omitempty: true
+        x-isnullable: true
+      self_registration:
+        type: boolean
+        description: Whether the Harbor instance supports self-registration.  If it''s set to false, admin need to add user to the instance. 
+        x-omitempty: true
+        x-isnullable: true
+      token_expiration:
+        type: integer
+        description: The expiration time of the token for internal Registry, in minutes. 
+        x-omitempty: true
+        x-isnullable: true
+      uaa_client_id:
+        type: string
+        description: The client id of UAA 
+        x-omitempty: true
+        x-isnullable: true
+      uaa_client_secret:
+        type: string
+        description: The client secret of the UAA 
+        x-omitempty: true
+        x-isnullable: true
+      uaa_endpoint:
+        type: string
+        description: The endpoint of the UAA 
+        x-omitempty: true
+        x-isnullable: true
+      uaa_verify_cert:
+        type: boolean
+        description: Verify the certificate in UAA server 
+        x-omitempty: true
+        x-isnullable: true
+      http_authproxy_endpoint:
+        type: string
+        description: The endpoint of the HTTP auth 
+        x-omitempty: true
+        x-isnullable: true
+      http_authproxy_tokenreview_endpoint:
+        type: string
+        description: The token review endpoint 
+        x-omitempty: true
+        x-isnullable: true
+      http_authproxy_admin_groups:
+        type: string
+        description: The group which has the harbor admin privileges 
+        x-omitempty: true
+        x-isnullable: true
+      http_authproxy_admin_usernames:
+        type: string
+        description: The username which has the harbor admin privileges 
+        x-omitempty: true
+        x-isnullable: true
+      http_authproxy_verify_cert:
+        type: boolean
+        description: Verify the HTTP auth provider's certificate 
+        x-omitempty: true
+        x-isnullable: true
+      http_authproxy_skip_search:
+        type: boolean
+        description: Search user before onboard 
+        x-omitempty: true
+        x-isnullable: true
+      http_authproxy_server_certificate:
+        type: string
+        description: The certificate of the HTTP auth provider 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_name:
+        type: string
+        description: The OIDC provider name 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_endpoint:
+        type: string
+        description: The endpoint of the OIDC provider 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_client_id:
+        type: string
+        description: The client ID of the OIDC provider 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_client_secret:
+        type: string
+        description: The OIDC provider secret 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_groups_claim:
+        type: string
+        description: The attribute claims the group name 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_admin_group:
+        type: string
+        description: The OIDC group which has the harbor admin privileges 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_scope:
+        type: string
+        description: The scope of the OIDC provider 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_user_claim:
+        type: string
+        description: The attribute claims the username 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_verify_cert:
+        type: boolean
+        description: Verify the OIDC provider's certificate' 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_auto_onboard:
+        type: boolean
+        description: Auto onboard the OIDC user 
+        x-omitempty: true
+        x-isnullable: true
+      oidc_extra_redirect_parms:
+        type: string
+        description: Extra parameters to add when redirect request to OIDC provider 
+        x-omitempty: true
+        x-isnullable: true
+      robot_token_duration:
+        type: integer
+        description: The robot account token duration in days 
+        x-omitempty: true
+        x-isnullable: true
+      robot_name_prefix:
+        type: string
+        description: The rebot account name prefix 
+        x-omitempty: true
+        x-isnullable: true
+      notification_enable:
+        type: boolean
+        description: Enable notification 
+        x-omitempty: true
+        x-isnullable: true
+      quota_per_project_enable:
+        type: boolean
+        description: Enable quota per project 
+        x-omitempty: true
+        x-isnullable: true
+      storage_per_project:
+        type: integer
+        description: The storage quota per project 
+        x-omitempty: true
+        x-isnullable: true
   StringConfigItem:
     type: object
     properties:
       value:
         type: string
+        x-omitempty: false
         description: The string value of current config item
       editable:
         type: boolean
+        x-omitempty: false
         description: The configure item can be updated or not
   BoolConfigItem:
     type: object
     properties:
       value:
         type: boolean
+        x-omitempty: false
         description: The boolean value of current config item
       editable:
         type: boolean
+        x-omitempty: false
         description: The configure item can be updated or not
   IntegerConfigItem:
     type: object
     properties:
       value:
         type: integer
+        x-omitempty: false
         description: The integer value of current config item
       editable:
         type: boolean
+        x-omitempty: false
         description: The configure item can be updated or not
   ProjectMemberEntity:
     type: object
@@ -7812,6 +8368,7 @@ definitions:
     properties:
       email:
         type: string
+        maxLength: 255
       realname:
         type: string
       comment:
@@ -7820,6 +8377,7 @@ definitions:
         type: string
       username:
         type: string
+        maxLength: 255
   OIDCUserInfo:
     type: object
     properties:
@@ -7980,4 +8538,9 @@ definitions:
         type: integer
         format: int64
         description: The count of the total repositories, only be seen by the system admin
+        x-omitempty: false
+      total_storage_consumption:
+        type: integer
+        format: int64
+        description: The total storage consumption of blobs, only be seen by the system admin
         x-omitempty: false

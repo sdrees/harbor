@@ -64,7 +64,7 @@ func newAdapter(registry *model.Registry) (*adapter, error) {
 func parseRegion(url string) (string, error) {
 	rs := regionRegexp.FindStringSubmatch(url)
 	if rs == nil {
-		return "", errors.New("Bad aws url")
+		return "", errors.New("bad aws url")
 	}
 	return rs[1], nil
 }
@@ -146,7 +146,7 @@ func getAdapterInfo() *model.AdapterPattern {
 	} {
 		endpoints = append(endpoints, &model.Endpoint{
 			Key:   e,
-			Value: fmt.Sprintf("https://%s.amazonaws.com", e),
+			Value: fmt.Sprintf("https://api.ecr.%s.amazonaws.com", e),
 		})
 	}
 	info := &model.AdapterPattern{

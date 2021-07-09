@@ -19,6 +19,7 @@ import (
 	"fmt"
 	testutils "github.com/goharbor/harbor/src/common/utils/test"
 	"github.com/goharbor/harbor/src/lib/config"
+	proModels "github.com/goharbor/harbor/src/pkg/project/models"
 
 	"net/http"
 	"net/http/httptest"
@@ -28,7 +29,6 @@ import (
 	"testing"
 
 	"github.com/goharbor/harbor/src/common"
-	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/rbac"
 	"github.com/goharbor/harbor/src/common/security"
 	"github.com/goharbor/harbor/src/controller/project"
@@ -46,20 +46,20 @@ func TestMain(m *testing.M) {
 	ctl := &projecttesting.Controller{}
 
 	mockGet := func(ctx context.Context,
-		projectIDOrName interface{}, options ...project.Option) (*models.Project, error) {
+		projectIDOrName interface{}, options ...project.Option) (*proModels.Project, error) {
 		name := projectIDOrName.(string)
 		id, _ := strconv.Atoi(strings.TrimPrefix(name, "project_"))
 		if id == 0 {
 			return nil, fmt.Errorf("%s not found", name)
 		}
-		return &models.Project{
+		return &proModels.Project{
 			ProjectID: int64(id),
 			Name:      name,
 		}, nil
 	}
 	mock.OnAnything(ctl, "Get").Return(
 		func(ctx context.Context,
-			projectIDOrName interface{}, options ...project.Option) *models.Project {
+			projectIDOrName interface{}, options ...project.Option) *proModels.Project {
 			p, _ := mockGet(ctx, projectIDOrName, options...)
 			return p
 		},
@@ -153,11 +153,16 @@ func TestMiddleware(t *testing.T) {
 	req1a, _ := http.NewRequest(http.MethodGet, "/v2/project_1/hello-world/manifest/v1", nil)
 	req1b, _ := http.NewRequest(http.MethodDelete, "/v2/project_1/hello-world/manifest/v1", nil)
 	req1c, _ := http.NewRequest(http.MethodHead, "/v2/project_1/hello-world/manifest/v1", nil)
+	req1d, _ := http.NewRequest(http.MethodGet, "/v2/project_1/hello-world/manifest/v1", nil)
+	req1d.Header.Set("Authorization", "Bearer xxx")
+	req1e, _ := http.NewRequest(http.MethodHead, "/v2/project_1/hello-world/manifest/v1", nil)
+	req1e.Header.Set("Authorization", "Bearer xxx")
 	req2, _ := http.NewRequest(http.MethodGet, "/v2/library/ubuntu/manifest/14.04", nil)
 	req3, _ := http.NewRequest(http.MethodGet, "/v2/_catalog", nil)
 	req4, _ := http.NewRequest(http.MethodPost, "/v2/project_1/ubuntu/blobs/uploads/mount=?mount=sha256:08e4a417ff4e3913d8723a05cc34055db01c2fd165b588e049c5bad16ce6094f&from=project_2/ubuntu", nil)
 	req5, _ := http.NewRequest(http.MethodPost, "/v2/project_1/ubuntu/blobs/uploads/mount=?mount=sha256:08e4a417ff4e3913d8723a05cc34055db01c2fd165b588e049c5bad16ce6094f&from=project_3/ubuntu", nil)
 	req6, _ := http.NewRequest(http.MethodPost, "/v2/project_1/ubuntu/blobs/uploads/mount=?mount=sha256:08e4a417ff4e3913d8723a05cc34055db01c2fd165b588e049c5bad16ce6094f&from=project_0/ubuntu", nil)
+	req7, _ := http.NewRequest(http.MethodPost, "/v2/uploads/mount=?mount=sha256:08e4a417ff4e3913d8723a05cc34055db01c2fd165b588e049c5bad16ce6094f&from=project_0/ubuntu", nil)
 
 	cases := []struct {
 		input  *http.Request
@@ -165,7 +170,7 @@ func TestMiddleware(t *testing.T) {
 	}{
 		{
 			input:  req1a.WithContext(ctx1),
-			status: http.StatusOK,
+			status: http.StatusUnauthorized,
 		},
 		{
 			input:  req1b.WithContext(ctx1),
@@ -174,6 +179,14 @@ func TestMiddleware(t *testing.T) {
 		{
 			input:  req1c.WithContext(ctx1),
 			status: http.StatusUnauthorized,
+		},
+		{
+			input:  req1d.WithContext(ctx1),
+			status: http.StatusOK,
+		},
+		{
+			input:  req1e.WithContext(ctx1),
+			status: http.StatusOK,
 		},
 		{
 			input:  req2.WithContext(ctx2),
@@ -193,6 +206,10 @@ func TestMiddleware(t *testing.T) {
 		},
 		{
 			input:  req6.WithContext(ctx5),
+			status: http.StatusUnauthorized,
+		},
+		{
+			input:  req7.WithContext(ctx5),
 			status: http.StatusUnauthorized,
 		},
 	}

@@ -15,6 +15,7 @@
 package gc
 
 import (
+	"github.com/goharbor/harbor/src/lib"
 	"os"
 	"time"
 
@@ -189,13 +190,14 @@ func (gc *GarbageCollector) mark(ctx job.Context) error {
 
 	// get gc candidates, and set the repositories.
 	// AS the reference count is calculated by joining table project_blob and blob, here needs to call removeUntaggedBlobs to remove these non-used blobs from table project_blob firstly.
-	if !gc.dryRun {
-		gc.removeUntaggedBlobs(ctx)
-	}
+	untaggedBlobs := gc.markOrSweepUntaggedBlobs(ctx)
 	blobs, err := gc.blobMgr.UselessBlobs(ctx.SystemContext(), gc.timeWindowHours)
 	if err != nil {
 		gc.logger.Errorf("failed to get gc candidate: %v", err)
 		return err
+	}
+	if len(untaggedBlobs) != 0 {
+		blobs = append(blobs, untaggedBlobs...)
 	}
 	if len(blobs) == 0 {
 		gc.logger.Info("no need to execute GC as there is no non referenced artifacts.")
@@ -269,9 +271,13 @@ func (gc *GarbageCollector) sweep(ctx job.Context) error {
 				}
 				// for manifest, it has to delete the revisions folder of each repository
 				gc.logger.Infof("delete manifest from storage: %s", blob.Digest)
-				if err := ignoreNotFound(func() error {
-					return gc.registryCtlClient.DeleteManifest(art.RepositoryName, blob.Digest)
-				}); err != nil {
+				if err := lib.RetryUntil(func() error {
+					return ignoreNotFound(func() error {
+						return gc.registryCtlClient.DeleteManifest(art.RepositoryName, blob.Digest)
+					})
+				}, lib.RetryCallback(func(err error, sleep time.Duration) {
+					gc.logger.Infof("failed to exec DeleteManifest retry after %s : %v", sleep, err)
+				})); err != nil {
 					if err := ignoreNotFound(func() error {
 						return gc.markDeleteFailed(ctx, blob)
 					}); err != nil {
@@ -293,9 +299,13 @@ func (gc *GarbageCollector) sweep(ctx job.Context) error {
 		// for the foreign layer, as it's not stored in the storage, no need to call the delete api and count size, but still have to delete the DB record.
 		if !blob.IsForeignLayer() {
 			gc.logger.Infof("delete blob from storage: %s", blob.Digest)
-			if err := ignoreNotFound(func() error {
-				return gc.registryCtlClient.DeleteBlob(blob.Digest)
-			}); err != nil {
+			if err := lib.RetryUntil(func() error {
+				return ignoreNotFound(func() error {
+					return gc.registryCtlClient.DeleteBlob(blob.Digest)
+				})
+			}, lib.RetryCallback(func(err error, sleep time.Duration) {
+				gc.logger.Infof("failed to exec DeleteBlob retry after %s : %v", sleep, err)
+			})); err != nil {
 				if err := ignoreNotFound(func() error {
 					return gc.markDeleteFailed(ctx, blob)
 				}); err != nil {
@@ -415,8 +425,11 @@ func (gc *GarbageCollector) deletedArt(ctx job.Context) (map[string][]model.Arti
 	return artMap, nil
 }
 
-// clean the untagged blobs in each project, these blobs are not referenced by any manifest and will be cleaned by GC
-func (gc *GarbageCollector) removeUntaggedBlobs(ctx job.Context) {
+// mark or sweep the untagged blobs in each project, these blobs are not referenced by any manifest and will be cleaned by GC
+// * dry-run, find and return the untagged blobs
+// * non dry-run, remove the reference of the untagged blobs
+func (gc *GarbageCollector) markOrSweepUntaggedBlobs(ctx job.Context) []*blob_models.Blob {
+	var untaggedBlobs []*blob_models.Blob
 	for result := range project.ListAll(ctx.SystemContext(), 50, nil, project.Metadata(false)) {
 		if result.Error != nil {
 			gc.logger.Errorf("remove untagged blobs for all projects got error: %v", result.Error)
@@ -451,9 +464,18 @@ func (gc *GarbageCollector) removeUntaggedBlobs(ctx job.Context) {
 				gc.logger.Errorf("failed to get blobs of project, %v", err)
 				break
 			}
-			if err := gc.blobMgr.CleanupAssociationsForProject(ctx.SystemContext(), p.ProjectID, blobs); err != nil {
-				gc.logger.Errorf("failed to clean untagged blobs of project, %v", err)
-				break
+			if gc.dryRun {
+				unassociated, err := gc.blobMgr.FindBlobsShouldUnassociatedWithProject(ctx.SystemContext(), p.ProjectID, blobs)
+				if err != nil {
+					gc.logger.Errorf("failed to find untagged blobs of project, %v", err)
+					break
+				}
+				untaggedBlobs = append(untaggedBlobs, unassociated...)
+			} else {
+				if err := gc.blobMgr.CleanupAssociationsForProject(ctx.SystemContext(), p.ProjectID, blobs); err != nil {
+					gc.logger.Errorf("failed to clean untagged blobs of project, %v", err)
+					break
+				}
 			}
 			if len(blobs) < ps {
 				break
@@ -461,6 +483,7 @@ func (gc *GarbageCollector) removeUntaggedBlobs(ctx job.Context) {
 			lastBlobID = blobs[len(blobs)-1].ID
 		}
 	}
+	return untaggedBlobs
 }
 
 // markDeleteFailed set the blob status to StatusDeleteFailed

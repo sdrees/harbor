@@ -21,11 +21,17 @@ import (
 )
 
 func TestMatchManifestURLPattern(t *testing.T) {
-	_, _, ok := MatchManifestURLPattern("")
-	assert.False(t, ok)
+	_, _, ok := MatchManifestURLPattern("/v2/library/hello-world/manifests/.Invalid")
+	assert.True(t, ok)
 
 	_, _, ok = MatchManifestURLPattern("/v2/")
 	assert.False(t, ok)
+
+	_, _, ok = MatchManifestURLPattern("/v2/library/hello-world/manifests//")
+	assert.True(t, ok)
+
+	_, _, ok = MatchManifestURLPattern("/v2/library/hello-world/manifests/###")
+	assert.True(t, ok)
 
 	repository, reference, ok := MatchManifestURLPattern("/v2/library/hello-world/manifests/latest")
 	assert.True(t, ok)
@@ -101,4 +107,12 @@ func TestMatchCatalogURLPattern(t *testing.T) {
 
 		assert.Equal(t, c.match, V2CatalogURLRe.MatchString(c.url), "failed for %s", c.url)
 	}
+}
+
+func TestRepositoryNamePattern(t *testing.T) {
+	assert := assert.New(t)
+	assert.False(RepositoryNameRe.MatchString("a/*"))
+	assert.False(RepositoryNameRe.MatchString("a/"))
+	assert.True(RepositoryNameRe.MatchString("a/b"))
+	assert.True(RepositoryNameRe.MatchString("a"))
 }

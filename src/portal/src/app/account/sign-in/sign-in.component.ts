@@ -11,9 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import { Component, OnInit } from '@angular/core';
-import { Router, ActivatedRoute } from '@angular/router';
-import { Input, ViewChild, AfterViewChecked } from '@angular/core';
+import { AfterViewChecked, Component, Input, OnInit, ViewChild } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { NgForm } from '@angular/forms';
 import { SessionService } from '../../shared/services/session.service';
 import { SignUpComponent } from '../sign-up/sign-up.component';
@@ -21,13 +20,15 @@ import { ForgotPasswordComponent } from '../../base/password-setting/forgot-pass
 import { AppConfigService } from '../../services/app-config.service';
 import { AppConfig } from '../../services/app-config';
 import { User } from '../../base/left-side-nav/user/user';
-import { CookieService, CookieOptions } from 'ngx-cookie';
+import { CookieOptions, CookieService } from 'ngx-cookie';
 import { SkinableConfig } from "../../services/skinable-config.service";
-import {ModalEvent} from "../../base/modal-event";
-import {modalEvents} from "../../base/modal-events.const";
-import {AboutDialogComponent} from "../../shared/components/about-dialog/about-dialog.component";
+import { ModalEvent } from "../../base/modal-event";
+import { modalEvents } from "../../base/modal-events.const";
+import { AboutDialogComponent } from "../../shared/components/about-dialog/about-dialog.component";
 import { CommonRoutes, CONFIG_AUTH_MODE } from "../../shared/entities/shared.const";
 import { SignInCredential } from "./sign-in-credential";
+import { UserPermissionService } from "../../shared/services";
+import {finalize} from "rxjs/operators";
 
 // Define status flags for signing in states
 export const signInStatusNormal = 0;
@@ -45,7 +46,6 @@ const expireDays = 10;
 export class SignInComponent implements AfterViewChecked, OnInit {
     showPwd: boolean = false;
     redirectUrl: string = "";
-    appConfig: AppConfig = new AppConfig();
     // Remeber me indicator
     rememberMe: boolean = false;
     rememberedName: string = "";
@@ -68,13 +68,16 @@ export class SignInComponent implements AfterViewChecked, OnInit {
         password: ""
     };
     isCoreServiceAvailable: boolean = true;
+    steps: number = 1;
+    hasLoadedAppConfig: boolean = false;
     constructor(
         private router: Router,
         private session: SessionService,
         private route: ActivatedRoute,
         private appConfigService: AppConfigService,
         private cookie: CookieService,
-        private skinableConfig: SkinableConfig) { }
+        private skinableConfig: SkinableConfig,
+        private userPermissionService: UserPermissionService) { }
 
     ngOnInit(): void {
         // custom skin
@@ -87,15 +90,6 @@ export class SignInComponent implements AfterViewChecked, OnInit {
                 this.customAppTitle = customSkinObj.loginTitle;
             }
         }
-
-        // Before login: Make sure the updated configuration can be loaded
-        this.appConfigService.load()
-            .subscribe(updatedConfig => this.appConfig = updatedConfig
-                , error => {
-                    // Catch the error
-                    console.error("Failed to load bootstrap options with error: ", error);
-                });
-
         this.route.queryParams
             .subscribe(params => {
                 this.redirectUrl = params["redirect_url"] || "";
@@ -116,7 +110,7 @@ export class SignInComponent implements AfterViewChecked, OnInit {
 
     // App title
     public get appTitle(): string {
-        if (this.appConfig && this.appConfig.with_admiral) {
+        if (this.appConfigService.getConfig() && this.appConfigService.getConfig().with_admiral) {
             return "APP_TITLE.VIC";
         }
 
@@ -139,11 +133,11 @@ export class SignInComponent implements AfterViewChecked, OnInit {
 
     // Whether show the 'sign up' link
     public get selfSignUp(): boolean {
-        return this.appConfig.auth_mode === CONFIG_AUTH_MODE.DB_AUTH
-            && this.appConfig.self_registration;
+        return this.appConfigService.getConfig() && this.appConfigService.getConfig().auth_mode === CONFIG_AUTH_MODE.DB_AUTH
+            && this.appConfigService.getConfig().self_registration;
     }
     public get isOidcLoginMode(): boolean {
-        return this.appConfig.auth_mode === CONFIG_AUTH_MODE.OIDC_AUTH;
+        return this.appConfigService.getConfig() && this.appConfigService.getConfig().auth_mode === CONFIG_AUTH_MODE.OIDC_AUTH;
     }
     clickRememberMe($event: any): void {
         if ($event && $event.target) {
@@ -244,7 +238,8 @@ export class SignInComponent implements AfterViewChecked, OnInit {
                 // Set status
                 // Keep it ongoing to keep the button 'disabled'
                 // this.signInStatus = signInStatusNormal;
-
+                // clear permissions cache
+                this.userPermissionService.clearPermissionCache();
                 // Remeber me
                 this.remeberMe();
 
@@ -259,11 +254,7 @@ export class SignInComponent implements AfterViewChecked, OnInit {
 
                 // after login successfully: Make sure the updated configuration can be loaded
                 this.appConfigService.load()
-                    .subscribe(updatedConfig => this.appConfig = updatedConfig
-                        , error => {
-                            // Catch the error
-                            console.error("Failed to load bootstrap options with error: ", error);
-                        });
+                    .subscribe();
             }, error => {
                 // 403 oidc login no body;
                 if (this.isOidcLoginMode && error && error.status === 403) {

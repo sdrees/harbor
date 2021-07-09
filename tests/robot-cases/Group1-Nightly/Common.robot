@@ -1,17 +1,16 @@
-
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+# Copyright Project Harbor Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#	http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License
 
 *** Settings ***
 Documentation  Harbor BATs
@@ -52,6 +51,7 @@ Test Case - Push ORAS and Display
     Wait Until Page Contains  ${tag}
     Close Browser
 
+## TODO: uncomment it once #14470 fixed
 # Test Case - Push SIF and Display
 #     [Tags]  push_sif
 #     Init Chrome Driver
@@ -61,8 +61,6 @@ Test Case - Push ORAS and Display
 
 #     Sign In Harbor  ${HARBOR_URL}  ${user}  ${pwd}
 #     Create An New Project And Go Into Project  test${d}
-
-#     Clean All Local Images
 
 #     ${repo_name}=  Set Variable  busybox
 #     ${tag}=  Set Variable  1.28
@@ -117,7 +115,7 @@ Test Case - Repo Size
     Push Image With Tag  ${ip}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}  library  alpine  2.6  2.6
     Go Into Project  library
     Go Into Repo  alpine
-    Wait Until Page Contains  1.92MB
+    Wait Until Page Contains  1.92MiB
     Close Browser
 
 Test Case - Staticsinfo
@@ -286,7 +284,7 @@ Test Case - User View Logs
     Create An New Project And Go Into Project  project${d}
     Logout Harbor
 
-    Body Of Replication Of Pull Images from Registry To Self   harbor  https://cicd.harbor.vmwarecna.net  ${null}  ${null}  nightly/${replication_image}  project${d}  N  @{target_images}
+    Body Of Replication Of Pull Images from Registry To Self   harbor  https://cicd.harbor.vmwarecna.net  ${null}  ${null}  nightly/${replication_image}  project${d}  N  Flatten 1 Level  @{target_images}
 
     Push image  ${ip}  ${user}  ${pwd}  project${d}  ${img}:${tag}
     Pull image  ${ip}  ${user}  ${pwd}  project${d}  ${replication_image}:${replication_tag}
@@ -519,7 +517,7 @@ Test Case - Create An New Project With Quotas Set
     Init Chrome Driver
     ${d}=  Get Current Date  result_format=%m%s
     ${storage_quota}=  Set Variable  600
-    ${storage_quota_unit}=  Set Variable  GB
+    ${storage_quota_unit}=  Set Variable  GiB
     Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
     Create An New Project And Go Into Project    project${d}  storage_quota=${storage_quota}  storage_quota_unit=${storage_quota_unit}
     ${storage_quota_ret}=  Get Project Storage Quota Text From Project Quotas List  project${d}
@@ -530,11 +528,11 @@ Test Case - Project Storage Quotas Dispaly And Control
     Init Chrome Driver
     ${d}=  Get Current Date  result_format=%m%s
     ${storage_quota}=  Set Variable  350
-    ${storage_quota_unit}=  Set Variable  MB
+    ${storage_quota_unit}=  Set Variable  MiB
     ${image_a}=  Set Variable  one_layer
     ${image_b}=  Set Variable  redis
-    ${image_a_size}=    Set Variable   330.83MB
-    ${image_b_size}=    Set Variable   34.1\\dMB
+    ${image_a_size}=    Set Variable   330.83MiB
+    ${image_b_size}=    Set Variable   34.1\\dMiB
     ${image_a_ver}=  Set Variable  1.0
     ${image_b_ver}=  Set Variable  donotremove5.0
     Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
@@ -563,7 +561,7 @@ Test Case - Project Quotas Control Under Copy
     ${image_a_ver}=  Set Variable  donotremove5.0
     ${image_b_ver}=  Set Variable  do_not_remove_6.8.3
     ${storage_quota}=  Set Variable  330
-    ${storage_quota_unit}=  Set Variable  MB
+    ${storage_quota_unit}=  Set Variable  MiB
     Sign In Harbor  ${HARBOR_URL}  ${HARBOR_ADMIN}  ${HARBOR_PASSWORD}
     Create An New Project And Go Into Project  project_a_${d}
     Create An New Project And Go Into Project  project_b_${d}  storage_quota=${storage_quota}  storage_quota_unit=${storage_quota_unit}

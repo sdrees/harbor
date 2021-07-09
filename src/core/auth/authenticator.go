@@ -15,19 +15,19 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/goharbor/harbor/src/common"
+	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/lib/config"
 	libErrors "github.com/goharbor/harbor/src/lib/errors"
-	"github.com/goharbor/harbor/src/lib/orm"
-	"github.com/goharbor/harbor/src/pkg/usergroup/model"
-
-	"github.com/goharbor/harbor/src/common"
-	"github.com/goharbor/harbor/src/common/dao"
-	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/lib/log"
+	"github.com/goharbor/harbor/src/lib/orm"
+	"github.com/goharbor/harbor/src/pkg/user"
+	"github.com/goharbor/harbor/src/pkg/usergroup/model"
 )
 
 // 1.5 seconds
@@ -36,16 +36,16 @@ const frozenTime time.Duration = 1500 * time.Millisecond
 var lock = NewUserLock(frozenTime)
 
 // ErrorUserNotExist ...
-var ErrorUserNotExist = errors.New("User does not exist")
+var ErrorUserNotExist = errors.New("user does not exist")
 
 // ErrorGroupNotExist ...
-var ErrorGroupNotExist = errors.New("Group does not exist")
+var ErrorGroupNotExist = errors.New("group does not exist")
 
 // ErrDuplicateLDAPGroup ...
-var ErrDuplicateLDAPGroup = errors.New("An LDAP user group with same DN already exist")
+var ErrDuplicateLDAPGroup = errors.New("a LDAP user group with same DN already exist")
 
 // ErrInvalidLDAPGroupDN ...
-var ErrInvalidLDAPGroupDN = errors.New("The LDAP group DN is invalid")
+var ErrInvalidLDAPGroupDN = errors.New("the LDAP group DN is invalid")
 
 // ErrNotSupported ...
 var ErrNotSupported = errors.New("not supported")
@@ -67,7 +67,6 @@ func NewErrAuth(msg string) ErrAuth {
 
 // AuthenticateHelper provides interface for user management in different auth modes.
 type AuthenticateHelper interface {
-
 	// Authenticate authenticate the user based on data in m.  Only when the error returned is an instance
 	// of ErrAuth, it will be considered a bad credentials, other errors will be treated as server side error.
 	Authenticate(m models.AuthModel) (*models.User, error)
@@ -137,19 +136,19 @@ func Register(name string, h AuthenticateHelper) {
 
 // Login authenticates user credentials based on setting.
 func Login(m models.AuthModel) (*models.User, error) {
-
-	authMode, err := config.AuthMode(orm.Context())
+	ctx := orm.Context()
+	authMode, err := config.AuthMode(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if authMode == "" || dao.IsSuperUser(m.Principal) {
+	if authMode == "" || IsSuperUser(ctx, m.Principal) {
 		authMode = common.DBAuth
 	}
 	log.Debug("Current AUTH_MODE is ", authMode)
 
 	authenticator, ok := registry[authMode]
 	if !ok {
-		return nil, fmt.Errorf("Unrecognized auth_mode: %s", authMode)
+		return nil, fmt.Errorf("unrecognized auth_mode: %s", authMode)
 	}
 	if lock.IsLocked(m.Principal) {
 		log.Debugf("%s is locked due to login failure, login failed", m.Principal)
@@ -175,7 +174,7 @@ func getHelper() (AuthenticateHelper, error) {
 	}
 	AuthenticateHelper, ok := registry[authMode]
 	if !ok {
-		return nil, fmt.Errorf("Can not get authenticator, authmode: %s", authMode)
+		return nil, fmt.Errorf("can not get authenticator, authmode: %s", authMode)
 	}
 	return AuthenticateHelper, nil
 }
@@ -256,4 +255,14 @@ func PostAuthenticate(u *models.User) error {
 		return err
 	}
 	return helper.PostAuthenticate(u)
+}
+
+// IsSuperUser checks if the user is super user(conventionally id == 1) of Harbor
+func IsSuperUser(ctx context.Context, username string) bool {
+	u, err := user.Mgr.GetByName(ctx, username)
+	if err != nil {
+		log.Errorf("Failed to get user from DB, username: %s, error: %v", username, err)
+		return false
+	}
+	return u.UserID == 1
 }

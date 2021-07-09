@@ -14,6 +14,7 @@
 package ldap
 
 import (
+	"github.com/goharbor/harbor/src/pkg/project"
 	"os"
 	"testing"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/goharbor/harbor/src/lib/orm"
 	_ "github.com/goharbor/harbor/src/pkg/config/db"
 	_ "github.com/goharbor/harbor/src/pkg/config/inmemory"
+	userpkg "github.com/goharbor/harbor/src/pkg/user"
 	"github.com/goharbor/harbor/src/pkg/usergroup"
 	ugModel "github.com/goharbor/harbor/src/pkg/usergroup/model"
 	"github.com/stretchr/testify/assert"
@@ -62,6 +64,8 @@ var ldapTestConfig = map[string]interface{}{
 	common.LDAPGroupAdminDn:       "cn=harbor_users,ou=groups,dc=example,dc=com",
 }
 
+var authHelper *Auth
+
 func TestMain(m *testing.M) {
 	test.InitDatabaseFromEnv()
 	config.InitWithSettings(ldapTestConfig)
@@ -76,6 +80,10 @@ func TestMain(m *testing.M) {
 
 	if err := os.Setenv("KEY_PATH", secretKeyPath); err != nil {
 		log.Fatalf("failed to set env %s: %v", "KEY_PATH", err)
+	}
+
+	authHelper = &Auth{
+		userMgr: userpkg.New(),
 	}
 
 	// Extract to test utils
@@ -104,7 +112,6 @@ func TestMain(m *testing.M) {
 
 func TestAuthenticate(t *testing.T) {
 	var person models.AuthModel
-	var authHelper *Auth
 	person.Principal = "test"
 	person.Password = "123456"
 	user, err := authHelper.Authenticate(person)
@@ -145,8 +152,7 @@ func TestAuthenticate(t *testing.T) {
 
 func TestSearchUser(t *testing.T) {
 	var username = "test"
-	var auth *Auth
-	user, err := auth.SearchUser(username)
+	user, err := authHelper.SearchUser(username)
 	if err != nil {
 		t.Errorf("Search user failed %v", err)
 	}
@@ -156,7 +162,6 @@ func TestSearchUser(t *testing.T) {
 }
 func TestAuthenticateWithAdmin(t *testing.T) {
 	var person models.AuthModel
-	var authHelper *Auth
 	person.Principal = "mike"
 	person.Password = "zhu88jie"
 	user, err := authHelper.Authenticate(person)
@@ -172,7 +177,6 @@ func TestAuthenticateWithAdmin(t *testing.T) {
 }
 func TestAuthenticateWithoutAdmin(t *testing.T) {
 	var person models.AuthModel
-	var authHelper *Auth
 	person.Principal = "user001"
 	person.Password = "Test1@34"
 	user, err := authHelper.Authenticate(person)
@@ -188,8 +192,7 @@ func TestAuthenticateWithoutAdmin(t *testing.T) {
 }
 func TestSearchUser_02(t *testing.T) {
 	var username = "nonexist"
-	var auth *Auth
-	user, _ := auth.SearchUser(username)
+	user, _ := authHelper.SearchUser(username)
 	if user != nil {
 		t.Errorf("Should failed to search nonexist user")
 	}
@@ -202,9 +205,7 @@ func TestOnBoardUser(t *testing.T) {
 		Email:    "sample@example.com",
 		Realname: "Sample",
 	}
-
-	var auth *Auth
-	err := auth.OnBoardUser(user)
+	err := authHelper.OnBoardUser(user)
 	if err != nil {
 		t.Errorf("Failed to onboard user")
 	}
@@ -219,8 +220,7 @@ func TestOnBoardUser_02(t *testing.T) {
 		Username: "sample02",
 		Realname: "Sample02",
 	}
-	var auth *Auth
-	err := auth.OnBoardUser(user)
+	err := authHelper.OnBoardUser(user)
 	if err != nil {
 		t.Errorf("Failed to onboard user")
 	}
@@ -237,8 +237,7 @@ func TestOnBoardUser_03(t *testing.T) {
 		Username: "sample03@example.com",
 		Realname: "Sample03",
 	}
-	var auth *Auth
-	err := auth.OnBoardUser(user)
+	err := authHelper.OnBoardUser(user)
 	if err != nil {
 		t.Errorf("Failed to onboard user")
 	}
@@ -304,10 +303,7 @@ func TestPostAuthentication(t *testing.T) {
 		Realname: "test003",
 	}
 
-	queryCondition := models.User{
-		Username: "test003",
-		Realname: "test003",
-	}
+	queryUsername := "test003"
 
 	err := auth.OnBoardUser(user1)
 	assert.Nil(err)
@@ -318,8 +314,8 @@ func TestPostAuthentication(t *testing.T) {
 	}
 
 	auth.PostAuthenticate(user2)
-
-	dbUser, err := dao.GetUser(queryCondition)
+	ctx := orm.Context()
+	dbUser, err := userpkg.Mgr.GetByName(ctx, queryUsername)
 	if err != nil {
 		t.Fatalf("Failed to get user, error %v", err)
 	}
@@ -330,7 +326,7 @@ func TestPostAuthentication(t *testing.T) {
 	}
 
 	auth.PostAuthenticate(user3)
-	dbUser, err = dao.GetUser(queryCondition)
+	dbUser, err = userpkg.Mgr.GetByName(ctx, queryUsername)
 	if err != nil {
 		t.Fatalf("Failed to get user, error %v", err)
 	}
@@ -342,8 +338,7 @@ func TestPostAuthentication(t *testing.T) {
 	}
 
 	auth.PostAuthenticate(user4)
-
-	dbUser, err = dao.GetUser(queryCondition)
+	dbUser, err = userpkg.Mgr.GetByName(ctx, queryUsername)
 	if err != nil {
 		t.Fatalf("Failed to get user, error %v", err)
 	}
@@ -364,7 +359,7 @@ func TestSearchAndOnBoardUser(t *testing.T) {
 func TestAddProjectMemberWithLdapUser(t *testing.T) {
 	memberMgr := member.Mgr
 	ctx := orm.Context()
-	currentProject, err := dao.GetProjectByName("member_test_01")
+	currentProject, err := project.Mgr.Get(ctx, "member_test_01")
 	if err != nil {
 		t.Errorf("Error occurred when GetProjectByName: %v", err)
 	}
@@ -384,7 +379,7 @@ func TestAddProjectMemberWithLdapUser(t *testing.T) {
 		t.Errorf("Error occurred in AddOrUpdateProjectMember: pmid:%v", pmid)
 	}
 
-	currentProject, err = dao.GetProjectByName("member_test_02")
+	currentProject, err = project.Mgr.Get(ctx, "member_test_02")
 	if err != nil {
 		t.Errorf("Error occurred when GetProjectByName: %v", err)
 	}
@@ -406,7 +401,7 @@ func TestAddProjectMemberWithLdapUser(t *testing.T) {
 func TestAddProjectMemberWithLdapGroup(t *testing.T) {
 	memberMgr := member.Mgr
 	ctx := orm.Context()
-	currentProject, err := dao.GetProjectByName("member_test_01")
+	currentProject, err := project.Mgr.Get(ctx, "member_test_01")
 	if err != nil {
 		t.Errorf("Error occurred when GetProjectByName: %v", err)
 	}

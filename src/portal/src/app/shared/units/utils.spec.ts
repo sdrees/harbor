@@ -1,5 +1,6 @@
-import { delUrlParam, getQueryString, getSortingString, isSameArrayValue, isSameObject } from "./utils";
+import { delUrlParam, getQueryString, getSizeNumber, getSizeUnit, getSortingString, isSameArrayValue, isSameObject } from "./utils";
 import { ClrDatagridStateInterface } from "@clr/angular";
+import {QuotaUnit} from "../entities/shared.const";
 
 describe('functions in utils.ts should work', () => {
   it('function isSameArrayValue() should work', () => {
@@ -52,5 +53,23 @@ describe('functions in utils.ts should work', () => {
       ]
     };
     expect(getQueryString(state)).toEqual(encodeURIComponent('name=~test,url=~http://test.com'));
+  });
+
+  it('function getSizeNumber() should work', () => {
+    expect(getSizeNumber).toBeTruthy();
+    expect(getSizeNumber(4564)).toEqual('4.46');
+    expect(getSizeNumber(10)).toEqual(10);
+    expect(getSizeNumber(456400)).toEqual('445.70');
+    expect(getSizeNumber(45640000)).toEqual('43.53');
+    expect(getSizeNumber(4564000000000)).toEqual('4.15');
+  });
+
+  it('function getSizeUnit() should work', () => {
+    expect(getSizeUnit).toBeTruthy();
+    expect(getSizeUnit(4564)).toEqual(QuotaUnit.KB);
+    expect(getSizeUnit(10)).toEqual(QuotaUnit.BIT);
+    expect(getSizeUnit(4564000)).toEqual(QuotaUnit.MB);
+    expect(getSizeUnit(4564000000)).toEqual(QuotaUnit.GB);
+    expect(getSizeUnit(4564000000000)).toEqual(QuotaUnit.TB);
   });
 });
